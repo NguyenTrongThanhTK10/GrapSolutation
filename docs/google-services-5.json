@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "929427196968",
+    "project_id": "grap-f7675",
+    "storage_bucket": "grap-f7675.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:929427196968:android:3c9e08795567f08d3f391d",
+        "android_client_info": {
+          "package_name": "vn.grapsolution.grap_customer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC5ZcOUIZoFpgVOenTZqYNgPcpgAZgy4og"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:929427196968:android:37752f2bd6d916ac3f391d",
+        "android_client_info": {
+          "package_name": "vn.grapsolution.grap_driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC5ZcOUIZoFpgVOenTZqYNgPcpgAZgy4og"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

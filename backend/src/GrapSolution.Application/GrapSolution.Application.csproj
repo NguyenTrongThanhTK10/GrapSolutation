@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="../GrapSolution.Domain/GrapSolution.Domain.csproj" /></ItemGroup></Project>

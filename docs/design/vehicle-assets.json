@@ -1,0 +1,31 @@
+{
+  "tool": "image_gen.imagegen",
+  "mode": "built-in",
+  "transparent_background": true,
+  "assets": [
+    {
+      "name": "bike",
+      "prompt": "Use case: stylized-concept. Asset type: production transparent vehicle illustration for the Vietnamese Grap ride-hailing mobile app, displayed in a 110px-wide service tile. Style: premium polished soft 3D product illustration, clean realistic proportions with subtly rounded forms, sophisticated miniature product render, crisp silhouette, gentle ambient studio light and a restrained grounding shadow. Camera: three-quarter front view, front pointing toward lower left, slight elevated camera, whole vehicle entirely visible with generous transparent margins, centered, square image. Backdrop genuinely transparent. No text, no labels, no badges, no logos, no people, no landscape, no border, no watermark. A stylish compact mint-green and ivory city scooter with charcoal wheels and a dark saddle. Modern Vietnamese urban scooter silhouette. One scooter only.",
+      "saved_paths": [
+        "mobile/apps/customer_app/assets/illustrations/ride_bike.png",
+        "mobile/apps/driver_app/assets/illustrations/ride_bike.png"
+      ]
+    },
+    {
+      "name": "car",
+      "prompt": "Use case: stylized-concept. Asset type: production transparent vehicle illustration for the Vietnamese Grap ride-hailing mobile app, displayed in a 110px-wide service tile. Style: premium polished soft 3D product illustration, clean realistic proportions with subtly rounded forms, sophisticated miniature product render, crisp silhouette, gentle ambient studio light and a restrained grounding shadow. Camera: three-quarter front view, front pointing toward lower left, slight elevated camera, whole vehicle entirely visible with generous transparent margins, centered, square image. Backdrop genuinely transparent. No text, no labels, no badges, no logos, no people, no landscape, no border, no watermark. A pearl-white modern four-door compact sedan with a subtle deep emerald green lower door panel, charcoal wheels, realistic glass windows. One sedan only.",
+      "saved_paths": [
+        "mobile/apps/customer_app/assets/illustrations/ride_car.png",
+        "mobile/apps/driver_app/assets/illustrations/ride_car.png"
+      ]
+    },
+    {
+      "name": "suv",
+      "prompt": "Use case: stylized-concept. Asset type: production transparent vehicle illustration for the Vietnamese Grap ride-hailing mobile app, displayed in a 110px-wide service tile. Style: premium polished soft 3D product illustration, clean realistic proportions with subtly rounded forms, sophisticated miniature product render, crisp silhouette, gentle ambient studio light and a restrained grounding shadow. Camera: three-quarter front view, front pointing toward lower left, slight elevated camera, whole vehicle entirely visible with generous transparent margins, centered, square image. Backdrop genuinely transparent. No text, no labels, no badges, no logos, no people, no landscape, no border, no watermark. A sophisticated deep emerald-green seven-seat family SUV with ivory highlights, charcoal wheels, glass windows and contemporary clean body design. One SUV only.",
+      "saved_paths": [
+        "mobile/apps/customer_app/assets/illustrations/ride_suv.png",
+        "mobile/apps/driver_app/assets/illustrations/ride_suv.png"
+      ]
+    }
+  ]
+}

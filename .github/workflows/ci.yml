@@ -1,0 +1,29 @@
+name: Grap checks
+on: [push, pull_request]
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.x' }
+      - run: dotnet test backend/GrapSolution.sln --configuration Release
+  web:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: admin_portal } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm, cache-dependency-path: admin_portal/package-lock.json }
+      - run: npm ci
+      - run: npm run build
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.47.6', channel: stable, cache: true }
+      - run: flutter pub get && flutter analyze && flutter test
+        working-directory: mobile/apps/customer_app
+      - run: flutter pub get && flutter analyze && flutter test
+        working-directory: mobile/apps/driver_app
