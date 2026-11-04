@@ -1,15 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:grap_customer/core/domain/models.dart';
+import 'package:grap_customer/core/domain/booking_discovery.dart';
 import 'package:grap_customer/core/widgets/app_widgets.dart';
 
 class RideServicePicker extends StatelessWidget {
   final String selected;
   final bool enabled;
+  final Map<String, QuoteSnapshot> quotes;
+  final Map<String, String> errors;
+  final bool loading;
+  final NearbyAvailability? availability;
   final ValueChanged<String> onSelected;
   const RideServicePicker({
     super.key,
     required this.selected,
     required this.enabled,
     required this.onSelected,
+    this.quotes = const {},
+    this.errors = const {},
+    this.loading = false,
+    this.availability,
   });
 
   @override
@@ -80,6 +90,8 @@ class RideServicePicker extends StatelessWidget {
                                             fontWeight: FontWeight.w700,
                                           ),
                                         ),
+                                        _price(code),
+                                        _availability(code),
                                         Text(
                                           seats,
                                           style: const TextStyle(
@@ -135,6 +147,8 @@ class RideServicePicker extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 3),
+                                  _price(code),
+                                  _availability(code),
                                   Text(
                                     code == 'BIKE'
                                         ? 'Linh hoạt'
@@ -158,4 +172,60 @@ class RideServicePicker extends StatelessWidget {
       );
     },
   );
+  Widget _price(String code) {
+    final quote = quotes[code];
+    if (loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 4),
+        child: Text(
+          'Đang lấy giá…',
+          style: TextStyle(fontSize: 12, color: grapMuted),
+        ),
+      );
+    }
+    if (quote == null) {
+      return errors.containsKey(code)
+          ? const Text(
+              'Chưa có giá',
+              style: TextStyle(fontSize: 12, color: grapWarning),
+            )
+          : const SizedBox.shrink();
+    }
+    return ExpiryBuilder(
+      deadline: quote.expiresAt,
+      builder: (seconds) => Column(
+        children: [
+          Text(
+            seconds == 0 ? 'Giá hết hạn' : vnd(quote.fare.payable),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: seconds == 0 ? grapWarning : grapGreen,
+            ),
+          ),
+          if (seconds > 0)
+            Text(
+              '${(quote.durationSeconds / 60).ceil()} phút đi',
+              style: const TextStyle(fontSize: 12, color: grapMuted),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _availability(String code) {
+    final data = availability;
+    if (data == null || !data.inServiceZone) return const SizedBox.shrink();
+    return ExpiryBuilder(
+      deadline: data.freshUntil,
+      builder: (seconds) => seconds == 0
+          ? const SizedBox.shrink()
+          : Text(
+              '${data.counts[code] ?? 0} xe gần đây',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, color: grapMuted),
+            ),
+    );
+  }
 }

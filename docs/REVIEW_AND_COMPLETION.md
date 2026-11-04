@@ -1,6 +1,6 @@
-# Rà soát file và bổ sung chức năng mobile
+# Rà soát và hoàn thiện ứng dụng mobile, web
 
-Ngày thực hiện: **03/11/2026**. Đối chiếu các chương 5, 7, 8, 10, 15, 17, 21 và 24 của đặc tả.
+Các đợt mobile thực hiện ngày **03/11/2026**; đợt hoàn thiện web và thống kê app tại mục 8–10 ngày **04/11/2026**. Đối chiếu các chương 5, 7, 8, 10, 15, 17, 21 và 24 của đặc tả.
 
 ## 1. Các lỗi chức năng đã sửa
 
@@ -129,3 +129,66 @@ MaterialApp nằm tại `lib/app/grap_app.dart`, đăng nhập tại `features/a
 Mã nằm trong `lib/core/network/api_client.dart`, `core/application/load_result.dart`, các controller booking/driving và các màn hình account/journey/privacy của từng app. Hai project vẫn độc lập và dùng Dio trực tiếp. Không có thay đổi hợp đồng API hoặc schema database trong đợt này.
 
 Giới hạn: đây là kiểm thử với transport/storage fake và widget/provider; không thay thế kiểm thử thiết bị, mất mạng thật, tracking nền hoặc tải đồng thời trên PostgreSQL. Cache history/earnings ở controller chỉ ở RAM, không phải cache lịch sử offline bền vững.
+
+
+## 8. Hoàn thiện web quản trị — 04/11/2026
+
+Phạm vi: `admin_portal`, giữ nhận diện xanh/trắng và hợp đồng API hiện có.
+
+| Phát hiện | Thay đổi |
+| --- | --- |
+| Menu, liên kết dashboard và tìm kiếm dẫn tới phân hệ không đúng quyền | Dùng bảng quyền thống nhất với API; chỉ hiện phân hệ phù hợp, kiểm tra điều hướng và có màn giải thích quyền truy cập kèm đường về workspace |
+| Dashboard của Reviewer/Security gọi danh sách chuyến hoặc tài xế không được phép | Chỉ tải các phần đúng quyền; lỗi tải bản đồ có trạng thái thử lại riêng |
+| Hồ sơ nhân sự bị chặn vì tải hạ tầng cùng lúc | Mọi vai trò nhân sự được xem/sửa hồ sơ; chỉ OperationsAdmin/SecurityAdmin tải phần hạ tầng |
+| Đổi bộ lọc khi request trước đang chạy làm mất lần tải mới | Xếp lần tải theo bộ lọc mới nhất, bỏ kết quả cũ; polling dùng request đang có, có trạng thái đang tải và giữ dữ liệu gần nhất khi lỗi |
+| Chi tiết chuyến giữ timeline trước hoặc không đổi khi query ID thay đổi | Theo dõi ID trên URL, xóa dữ liệu khi đổi chuyến, chặn response cũ, có loading/lỗi/thử lại; khóa lệnh vận hành khi snapshot chưa xác minh |
+| Bộ lọc và phân trang thiếu thao tác quay lại | Thêm xóa bộ lọc chuyến; khóa chuyển trang lúc đang tải; nhật ký có trang trước và chỉ áp từ khóa khi tìm kiếm |
+| Hỗ trợ cho chọn trạng thái không hợp lệ và trả lời phiếu đã đóng | Chỉ hiện bước chuyển hợp lệ theo backend, thêm lọc CLOSED, hội thoại đóng chỉ đọc; giới hạn phản hồi 5.000 ký tự và xóa nháp khi đổi phiếu |
+| Nhân sự hỗ trợ thấy nút hạn chế khách dù không có quyền ghi | Chỉ OperationsAdmin/SecurityAdmin thấy hành động; tiêu đề xác nhận phân biệt hạn chế và mở lại |
+| Tài chính thiếu làm mới, trạng thái rỗng và phạm vi số liệu | Thêm làm mới, thông báo rỗng từng bảng, làm rõ giới hạn danh sách 100 khoản thu/50 bút toán và xuất các khoản thu đã tải |
+| Chữ nhỏ, bảng/hộp thoại khó dùng trên điện thoại | Tăng cỡ chữ/độ tương phản; cuộn ngang trong bảng với chỉ dẫn; nút và bộ lọc xuống hàng; hộp thoại nằm trong viewport; bố cục 320 px có cột đơn khi cần |
+| Menu ẩn vẫn nhận focus, thiếu thao tác bàn phím | Thêm inert, nút đóng, Escape, giữ focus trong menu và trả focus về nút mở; đóng menu cả khi chọn lại trang hiện tại; có liên kết bỏ qua điều hướng và bảng cuộn được bằng bàn phím |
+| Thông báo có thể dẫn mọi loại entity sang chuyến xe | Chỉ loại ride mở chuyến; application điều hướng theo quyền; xóa danh sách khi đổi tài khoản và không áp danh sách trả chậm của tài khoản khác |
+
+Mã chính: `src/lib/access.ts`, `src/composables/useQuery.ts`, `src/App.vue`, `src/style.css` và các view trong `admin_portal`. Không thay đổi backend, schema hoặc mã mobile trong đợt này.
+
+Ảnh kiểm tra: [desktop](qa/web-dashboard-desktop.png), [mobile](qa/web-dashboard-mobile.png), [chi tiết chuyến mobile](qa/web-ride-mobile.png). Kết quả chạy thực tế, phạm vi API thật/snapshot giả lập và giới hạn được ghi tại [VALIDATION.md](VALIDATION.md).
+
+
+## 9. Báo cáo và thống kê trên hai app — 04/11/2026
+
+- **Khách:** mở Hành trình → Thống kê chuyến & chi tiêu. Xem chuyến đã kết thúc/hoàn tất/hủy/không thành, tỷ lệ hoàn tất, cước phải trả, đã thanh toán, còn lại và thống kê dịch vụ.
+- **Tài xế:** mở Thu nhập → Báo cáo thu nhập theo kỳ. Xem các chỉ số chuyến, giá gộp, hoa hồng, quyền lợi và khoản đã thu/còn phải thu. Phần thu nhập cũ được ghi rõ là lũy kế, độc lập số liệu theo kỳ.
+- Cả hai có Hôm nay, 7 ngày, Tháng này và chọn khoảng ngày tối đa 366 ngày. Biểu đồ cột theo ngày, tự gộp theo tháng khi kỳ dài hơn 31 ngày; điền cả ngày/tháng không có chuyến. Bảy ngày vừa màn hình 390 px ở cỡ chữ thường; kỳ dài hoặc chữ lớn cuộn ngang.
+- API mới `/me/ride-statistics` tổng hợp toàn bộ dữ liệu đúng chủ, theo EndedAt và ngày Việt Nam, không cộng riêng trang lịch sử đang tải. Tài xế từng nhận assignment nhưng không phải tài xế cuối không được cộng quyền lợi của người khác.
+- Phân biệt cước nghĩa vụ, tiền hiện đã ghi nhận và quyền lợi tài xế; chỉ chuyến hoàn tất đóng góp số tiền. Thanh toán cập nhật muộn vẫn cập nhật số đã thu cho kỳ kết thúc chuyến khi tải lại báo cáo, không coi đó là tiền được thu đúng ngày kết thúc.
+- Có làm mới/kéo xuống, lỗi và thử lại, trạng thái rỗng, chặn xuất khi chưa có dữ liệu hợp lệ; phản hồi chậm không thay kết quả kỳ/tài khoản mới. Provider thống kê không tự lặp retry khi lỗi.
+- **Sao chép CSV** xuất tổng hợp, các bucket và dịch vụ; có thời điểm tải UTC, ngày kỳ, số tiền VND nguyên và BOM UTF-8. Dữ liệu không có PII. Đây là sao chép văn bản CSV vào clipboard; chưa tạo file tải/chia sẻ trực tiếp, `.xlsx` hoặc PDF.
+
+Mỗi app giữ domain/repository/provider/screen và test trong project của mình. Không thêm package, quyền iOS/Android hoặc migration. Mã mới tại `lib/core/domain/statistics.dart`, `lib/core/data/statistics_repository.dart`, `lib/features/statistics/statistics_screen.dart`; backend tại `StatisticsEndpoints.cs`. Hợp đồng trong [API README](api/README.md); snapshot OpenAPI đã cập nhật từ API đang chạy.
+
+Ảnh widget thật với dữ liệu giả lập: [khách – tổng quan](qa/customer-statistics-overview.png), [khách – biểu đồ](qa/customer-statistics-chart.png), [tài xế – tổng quan](qa/driver-statistics-overview.png), [tài xế – biểu đồ](qa/driver-statistics-chart.png). Kiểm chứng và giới hạn tại [VALIDATION.md](VALIDATION.md).
+
+
+## 10. Tìm địa điểm và đặt xe thuận tiện hơn trên app khách — 04/11/2026
+
+| Phần | Hành vi đã bổ sung / tối ưu |
+| --- | --- |
+| Tìm điểm đón/đến | Ô tìm kiếm ngay trong sheet, chờ 300 ms sau khi gõ, tối đa 150 ký tự; bỏ phản hồi query cũ, xóa query không phát request mới |
+| Gợi ý cá nhân | Tìm không dấu trong tên/địa chỉ đã lưu; gợi ý địa điểm từ lịch sử gần đây và địa điểm API; khử trùng theo tọa độ, ưu tiên địa chỉ của mình |
+| GPS và ghim | Có lối tắt dùng GPS, vẫn phải xem/xác nhận ghim; pin thủ công thắng response GPS cũ; đổi pin xóa mô tả cũ; nút xác nhận ở trên bàn phím/vùng cử chỉ; từ chối GPS vẫn chọn thủ công |
+| Đảo tuyến | Đổi điểm đón/đến một chạm, xóa toàn bộ giá cũ; chặn khi đang gửi lệnh đặt xe hoặc có chuyến active |
+| So sánh loại xe | Một lần xem giá tải BIKE/CAR_4/CAR_7 song song qua API quote hiện có; có giá/thời gian di chuyển trên thẻ và nút chọn giá thấp nhất |
+| Đổi loại xe | Dùng đúng quote của loại đó trong cùng tuyến; thiếu giá thì không dùng quote loại khác. Quote hết hạn vẫn buộc lấy giá mới trước khi đặt |
+| Chờ giá | Có thể sửa địa điểm/chọn loại xe khi đang tải; đổi tuyến hủy hiệu lực toàn bộ comparison cũ. Một dịch vụ lỗi không làm mất giá dịch vụ còn lại |
+| Xe gần điểm đón | API Customer-only trả số lượng theo loại trong bán kính 3 km, không trả danh tính hoặc tọa độ tài xế; thẻ loại xe có số lượng riêng |
+| Tính đủ điều kiện | Dùng cùng bộ lọc với dispatch: duyệt hồ sơ/giấy tờ, user/session active, online, GPS/heartbeat mới, accuracy, không bận, không giữ offer khác |
+| Tải số xe | Lọc điều kiện trong SQL rồi chỉ lấy service/tọa độ để tính khoảng cách, tránh đọc user/session/assignment lặp từng tài xế; không tự polling liên tục; snapshot quá 20 giây bị ẩn và có nút cập nhật |
+| Khởi động | Ngoài chế độ demo không gọi autocomplete với query rỗng và không tự chọn tuyến mẫu; dịch vụ autocomplete chỉ được gọi khi người dùng tìm kiếm |
+| Giao diện | Các bước hành trình/chọn xe rõ ràng, thêm lối tắt GPS/đảo tuyến/địa điểm gần đây, bỏ banner quảng bá dài, giữ hành động chính cố định, sheet cuộn được khi có bàn phím và chữ lớn |
+
+Backend autocomplete hiện gọi `IMapProvider.Search`: Development không cấu hình Maps dùng fixture có tìm không dấu/nhiều từ/alias TSN-SGN; khi có `Maps__BaseUrl`, gọi `/autocomplete?q=...` của adapter. Adapter lỗi hoặc dữ liệu tọa độ không hợp lệ trả 503, không âm thầm thay bằng địa điểm mẫu. Nhà cung cấp geocoding thật vẫn phải được triển khai/cấu hình theo [runbook](runbooks/LOCAL_AND_DEPLOYMENT.md).
+
+Số xe là snapshot tham khảo, không giữ chỗ hoặc cam kết có tài xế nhận chuyến. Thời gian trên thẻ là thời gian **di chuyển của tuyến**, không phải ETA tài xế đến đón. Bán kính là khoảng cách địa lý, chưa có PostGIS/spatial index. Không có cơ chế ưu tiên sai giá hoặc tự tạo chuyến khi người dùng đổi loại xe.
+
+Mã chính trong `mobile/apps/customer_app/lib/features/booking/`, `features/places/`, `core/domain/booking_discovery.dart`, `core/data/booking_discovery_repository.dart`; backend ở `RideService.cs`, `MapProviders.cs`, `Ports.cs`, `Endpoints.cs`. Không thêm package, quyền native hay migration. Ảnh widget thật với dữ liệu giả lập: [đặt xe](qa/customer-booking-home.png), [so sánh](qa/customer-booking-comparison.png), [tìm địa điểm](qa/customer-booking-search.png). Kiểm chứng chi tiết tại [VALIDATION.md](VALIDATION.md).

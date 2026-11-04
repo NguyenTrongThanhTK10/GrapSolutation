@@ -8,7 +8,15 @@ public record Actor(string Id, string Role, string ZoneId, string SessionId)
     public void Scope(string zone) { if (Staff && ZoneId != zone) throw new RuleException("RESOURCE_NOT_FOUND", "Không tìm thấy dữ liệu.", 404); }
 }
 public record RouteResult(int DistanceMeters, int DurationSeconds, string Source, string? Geometry = null);
-public interface IMapProvider { Task<RouteResult> Route(GeoPoint pickup, GeoPoint dropoff, string service, CancellationToken ct); }
+public record MapPlace(string PlaceId, double Latitude, double Longitude, string Address);
+public interface IMapProvider
+{
+    Task<RouteResult> Route(GeoPoint pickup, GeoPoint dropoff, string service, CancellationToken ct);
+    Task<IReadOnlyList<MapPlace>> Search(string query, CancellationToken ct) =>
+        throw new RuleException("DEPENDENCY_UNAVAILABLE", "Tìm địa điểm chưa sẵn sàng. Bạn có thể chọn ghim trên bản đồ.", 503);
+}
+public record NearbyService(string Code, int AvailableCount);
+public record NearbyServices(bool InServiceZone, int RadiusMeters, DateTime ServerTime, IReadOnlyList<NearbyService> Items);
 public interface IOtpProvider { Task Send(string phone, string code, CancellationToken ct); }
 public interface ISecrets { string Hash(string value); string Hmac(string value); string Protect(string value); string Unprotect(string value); }
 public record QuoteRequest(GeoPoint Pickup, GeoPoint Dropoff, string ServiceTypeCode, string PaymentMethodType = "CASH");

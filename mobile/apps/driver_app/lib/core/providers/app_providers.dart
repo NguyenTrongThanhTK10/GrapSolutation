@@ -5,6 +5,8 @@ import '../push/push_providers.dart';
 import '../data/repositories.dart';
 import '../data/account_repositories.dart';
 import '../data/journey_repository.dart';
+import '../data/statistics_repository.dart';
+import '../domain/statistics.dart';
 import '../domain/journey.dart';
 import '../domain/models.dart';
 import '../domain/repositories.dart';
@@ -136,3 +138,18 @@ class SessionController extends AsyncNotifier<GrapUser?> {
     }
   }
 }
+
+final statisticsRepositoryProvider = Provider<StatisticsRepository>(
+  (ref) => ApiStatisticsRepository(ref.watch(apiClientProvider)),
+);
+final rideStatisticsProvider = FutureProvider.autoDispose
+    .family<RideStatistics, StatisticsPeriod>((ref, period) {
+      final user = ref.watch(sessionProvider).value;
+      if (user == null) {
+        throw const Failure(
+          'SESSION_REQUIRED',
+          'Vui lòng đăng nhập để xem thống kê.',
+        );
+      }
+      return ref.watch(statisticsRepositoryProvider).load(period);
+    }, retry: (_, _) => null);

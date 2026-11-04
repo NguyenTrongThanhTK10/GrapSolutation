@@ -7,12 +7,17 @@ import 'package:grap_customer/core/core.dart';
 import 'package:grap_customer/core/widgets/app_widgets.dart';
 import 'package:grap_customer/features/account/presentation/account_screens.dart';
 import 'package:grap_customer/features/journey/presentation/journey_screens.dart';
+import 'package:grap_customer/features/journey/presentation/ride_journey_map.dart';
 import 'package:grap_customer/features/privacy/presentation/privacy_screens.dart';
 
+import '../statistics/statistics_screen.dart';
+import '../places/presentation/place_picker_screen.dart';
 import 'customer_controller.dart';
 import 'widgets/booking_action_bar.dart';
 import 'widgets/booking_place_sheet.dart';
 import 'widgets/ride_service_picker.dart';
+import 'widgets/nearby_services.dart';
+import 'widgets/place_search.dart';
 
 class CustomerScreen extends ConsumerStatefulWidget {
   final GrapUser user;
@@ -98,7 +103,13 @@ class _CustomerScreenState extends ConsumerState<CustomerScreen>
             BookingActionBar(
               quote: booking.quote,
               busy: booking.busy,
-              hasRoute: booking.pickup != null && booking.dropoff != null,
+              hasRoute:
+                  booking.pickup != null &&
+                  booking.dropoff != null &&
+                  placeKey(booking.pickup!) != placeKey(booking.dropoff!),
+              loadingQuotes: booking.pricing,
+              onChooseRoute: () =>
+                  _choosePlace(booking, pickup: booking.pickup == null),
               onQuote: controller.quote,
               onBook: controller.book,
             ),
@@ -154,13 +165,25 @@ class _CustomerScreenState extends ConsumerState<CustomerScreen>
               if (s.error != null) GrapNotice(s.error!, error: true),
               if (s.message != null) GrapNotice(s.message!),
               if (tab == 0) ...(s.ride == null ? _booking(s) : _activeRide(s)),
-              if (tab == 1)
+              if (tab == 1) ...[
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.bar_chart_rounded),
+                  label: const Text('Thống kê chuyến & chi tiêu'),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const RideStatisticsScreen(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 GrapHistoryPanel(
                   onRebook: (ride) {
                     controller.rebook(ride);
                     setState(() => tab = 0);
                   },
                 ),
+              ],
               if (tab == 2) ...[
                 const Text(
                   'Không gian của bạn',
@@ -181,6 +204,7 @@ class _CustomerScreenState extends ConsumerState<CustomerScreen>
   }
 
   Future<void> _choosePlace(CustomerState s, {required bool pickup}) async {
+    final actor = ref.read(sessionProvider).value?.id;
     final place = await showModalBottomSheet<Place>(
       context: context,
       isScrollControlled: true,
@@ -190,9 +214,17 @@ class _CustomerScreenState extends ConsumerState<CustomerScreen>
         title: pickup ? 'Chọn điểm đón' : 'Bạn muốn đến đâu?',
         selected: pickup ? s.pickup : s.dropoff,
         places: s.places,
+        recent: s.history
+            .map((ride) => pickup ? ride.pickup : ride.dropoff)
+            .toList(),
+        demo: s.demo,
       ),
     );
-    if (!mounted || place == null) return;
+    if (!mounted ||
+        place == null ||
+        actor != ref.read(sessionProvider).value?.id) {
+      return;
+    }
     if (pickup) {
       controller.selectPickup(place);
     } else {
@@ -228,11 +260,16 @@ class _CustomerScreenState extends ConsumerState<CustomerScreen>
   }
 
   Future<void> _chooseSavedDestination() async {
+    final actor = ref.read(sessionProvider).value?.id;
     final place = await Navigator.push<Place>(
       context,
       MaterialPageRoute(builder: (_) => const SavedPlacesScreen(select: true)),
     );
-    if (mounted && place != null) controller.selectDropoff(place);
+    if (mounted &&
+        place != null &&
+        actor == ref.read(sessionProvider).value?.id) {
+      controller.selectDropoff(place);
+    }
   }
 
   Widget _quickAction(IconData icon, String label, VoidCallback? onTap) =>
@@ -265,249 +302,279 @@ class _CustomerScreenState extends ConsumerState<CustomerScreen>
         ),
       );
 
-  List<Widget> _booking(CustomerState s) => [
-    Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (MediaQuery.textScalerOf(context).scale(14) <= 18) ...[
+  Future<void> _gpsPickup() async {
+    final actor = ref.read(sessionProvider).value?.id;
+    final point = await Navigator.push<Place>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PlacePickerScreen(
+          title: 'Xác nhận điểm đón',
+          locateOnOpen: true,
+        ),
+      ),
+    );
+    if (mounted &&
+        point != null &&
+        actor == ref.read(sessionProvider).value?.id) {
+      controller.selectPickup(point);
+    }
+  }
+
+  List<Widget> _booking(CustomerState s) {
+    final nearby = s.pickup == null
+        ? null
+        : ref.watch(nearbyServicesProvider(s.pickup!));
+    final availability = nearby?.isLoading == false && nearby?.hasError == false
+        ? nearby?.asData?.value
+        : null;
+    final recent = uniquePlaces(s.history.map((r) => r.dropoff))
+        .where((p) => s.pickup == null || placeKey(p) != placeKey(s.pickup!))
+        .take(4)
+        .toList();
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             Text(
-              'Chào ${widget.user.name.split(' ').last},',
-              style: const TextStyle(fontSize: 14, color: grapMuted),
+              'Đi đâu hôm nay?',
+              style: TextStyle(
+                fontSize: MediaQuery.sizeOf(context).width < 360 ? 25 : 30,
+                fontWeight: FontWeight.w800,
+                color: grapInk,
+                letterSpacing: -.8,
+              ),
             ),
-            const SizedBox(height: 4),
-          ],
-          Text(
-            'Đi đâu hôm nay?',
-            style: TextStyle(
-              fontSize: MediaQuery.sizeOf(context).width < 360 ? 25 : 30,
-              fontWeight: FontWeight.w800,
-              color: grapInk,
-              letterSpacing: -.8,
+            const SizedBox(height: 6),
+            const Text(
+              'Chọn hành trình, so sánh giá và xác nhận đặt xe.',
+              style: TextStyle(fontSize: 14, color: grapMuted),
             ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Chọn điểm đến, Grap lo chuyến đi.',
-            style: TextStyle(fontSize: 14, color: grapMuted),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xffe6ede8)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x060c3825),
-                  blurRadius: 16,
-                  offset: Offset(0, 5),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                Chip(
+                  avatar: Icon(
+                    s.pickup != null && s.dropoff != null
+                        ? Icons.check_circle
+                        : Icons.route,
+                    color: grapGreen,
+                    size: 18,
+                  ),
+                  label: const Text('1. Hành trình'),
+                ),
+                Chip(
+                  avatar: Icon(
+                    s.quote != null ? Icons.check_circle : Icons.directions_car,
+                    color: grapGreen,
+                    size: 18,
+                  ),
+                  label: const Text('2. Chọn xe & giá'),
                 ),
               ],
             ),
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(22),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xffe6ede8)),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(22),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    _placeField(s, pickup: true),
+                    const Divider(height: 1, indent: 68, endIndent: 18),
+                    _placeField(s, pickup: false),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ActionChip(
+                  avatar: const Icon(Icons.my_location, size: 18),
+                  label: const Text('Dùng vị trí hiện tại'),
+                  onPressed: s.busy ? null : _gpsPickup,
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.swap_vert, size: 18),
+                  label: const Text('Đảo hành trình'),
+                  onPressed: s.busy || s.pickup == null || s.dropoff == null
+                      ? null
+                      : controller.swapPlaces,
+                ),
+              ],
+            ),
+            if (recent.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Đến gần đây',
+                style: TextStyle(fontSize: 13, color: grapMuted),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  _placeField(s, pickup: true),
-                  const Divider(height: 1, indent: 68, endIndent: 18),
-                  _placeField(s, pickup: false),
+                  for (final p in recent)
+                    ActionChip(
+                      avatar: const Icon(Icons.history, size: 18),
+                      label: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 210),
+                        child: Text(
+                          p.address,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      tooltip: p.address,
+                      onPressed: s.busy
+                          ? null
+                          : () => controller.selectDropoff(p),
+                    ),
+                ],
+              ),
+            ],
+            if (s.pickup != null) ...[
+              const SizedBox(height: 14),
+              NearbyServicesPanel(pickup: s.pickup!),
+            ],
+            const SizedBox(height: 20),
+            const Text(
+              'Chọn cách bạn di chuyển',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: grapInk,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Xem giá một lần cho cả 3 loại xe. Thời gian hiển thị là thời gian di chuyển của tuyến.',
+              style: TextStyle(fontSize: 13, height: 1.5, color: grapMuted),
+            ),
+            const SizedBox(height: 14),
+            RideServicePicker(
+              selected: s.service,
+              enabled: !s.busy,
+              onSelected: controller.selectService,
+              quotes: s.quoteOptions,
+              errors: s.quoteErrors,
+              loading: s.pricing,
+              availability: availability,
+            ),
+            if (s.quoteOptions.length > 1)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: s.busy
+                      ? null
+                      : () {
+                          final choices =
+                              s.quoteOptions.entries
+                                  .where((e) => !e.value.expired)
+                                  .toList()
+                                ..sort(
+                                  (a, b) => a.value.fare.payable.compareTo(
+                                    b.value.fare.payable,
+                                  ),
+                                );
+                          if (choices.isNotEmpty) {
+                            controller.selectService(choices.first.key);
+                          }
+                        },
+                  icon: const Icon(Icons.savings_outlined, size: 18),
+                  label: const Text('Chọn giá thấp nhất'),
+                ),
+              ),
+            const SizedBox(height: 18),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xffe6ede8)),
+              ),
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(4, 4, 4, 12),
+                    child: Text(
+                      'Xem trước hành trình',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  GrapMap(
+                    pickup: s.pickup,
+                    dropoff: s.dropoff,
+                    height: 190,
+                    borderRadius: 16,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '${serviceLabel(s.service)} · Thanh toán tiền mặt',
+                    style: const TextStyle(fontSize: 13, color: grapMuted),
+                  ),
+                  if (s.quote != null)
+                    Text(
+                      '${(s.quote!.distanceMeters / 1000).toStringAsFixed(1)} km · Khoảng ${(s.quote!.durationSeconds / 60).ceil()} phút di chuyển',
+                      style: const TextStyle(fontSize: 13, color: grapMuted),
+                    ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Chọn cách bạn di chuyển',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: grapInk,
-                    letterSpacing: -.3,
-                  ),
-                ),
-              ),
-              const Icon(Icons.tune_rounded, size: 19, color: grapMuted),
-            ],
-          ),
-          const SizedBox(height: 14),
-          RideServicePicker(
-            selected: s.service,
-            enabled: !s.busy,
-            onSelected: controller.selectService,
-          ),
-          const SizedBox(height: 18),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _quickAction(
-                Icons.bookmark_border_rounded,
-                'Địa chỉ đã lưu',
-                s.busy ? null : _chooseSavedDestination,
-              ),
-              const SizedBox(width: 10),
-              _quickAction(
-                Icons.history_rounded,
-                'Hành trình',
-                () => setState(() => tab = 1),
-              ),
-              const SizedBox(width: 10),
-              _quickAction(
-                Icons.shield_outlined,
-                'An toàn',
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => const SafetyContactsScreen(),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 26),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xffe6ede8)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Điểm đón & điểm đến',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      Icon(Icons.route_rounded, color: grapGreen, size: 21),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: GrapMap(
-                    pickup: s.pickup,
-                    dropoff: s.dropoff,
-                    height: 200,
-                    borderRadius: 16,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.payments_outlined,
-                        size: 20,
-                        color: grapGreen,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '${serviceLabel(s.service)} · Tiền mặt',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: grapMuted,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (s.quote != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              '${(s.quote!.distanceMeters / 1000).toStringAsFixed(1)} km · Khoảng ${(s.quote!.durationSeconds / 60).ceil()} phút',
-              style: const TextStyle(fontSize: 14, color: grapMuted),
-            ),
-            const GrapNotice(
-              'Kiểm tra hành trình và giá trước khi xác nhận. Phụ phí chỉ tính khi bạn chấp thuận.',
-            ),
-          ],
-          const SizedBox(height: 20),
-          Container(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xff123e30), Color(0xff1b6547)],
-              ),
-              borderRadius: BorderRadius.circular(22),
-            ),
-            padding: const EdgeInsets.all(20),
-            child: Row(
+            const SizedBox(height: 18),
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
-                  Icons.verified_user_outlined,
-                  size: 34,
-                  color: Color(0xffccebd7),
+                _quickAction(
+                  Icons.bookmark_border_rounded,
+                  'Địa chỉ đã lưu',
+                  s.busy ? null : _chooseSavedDestination,
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'An tâm trên mọi chuyến đi',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Kiểm tra biển số, xác nhận PIN và lưu liên hệ tin cậy.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          height: 1.5,
-                          color: Color(0xffd8e9df),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      TextButton(
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.zero,
-                        ),
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) => const SafetyContactsScreen(),
-                          ),
-                        ),
-                        child: const Text('Xem tính năng an toàn →'),
-                      ),
-                    ],
+                const SizedBox(width: 10),
+                _quickAction(
+                  Icons.history_rounded,
+                  'Hành trình',
+                  () => setState(() => tab = 1),
+                ),
+                const SizedBox(width: 10),
+                _quickAction(
+                  Icons.shield_outlined,
+                  'An toàn',
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const SafetyContactsScreen(),
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
-          if (s.demo)
-            const GrapNotice(
-              'Chế độ phát triển: chọn địa điểm mẫu. Tuyến và thời gian không phải kết quả định tuyến thật.',
-            ),
-        ],
+            if (s.demo)
+              const GrapNotice(
+                'Đang dùng địa điểm và tuyến mẫu. Giá, quãng đường và thời gian demo không phải dữ liệu định tuyến thực tế.',
+              ),
+          ],
+        ),
       ),
-    ),
-  ];
+    ];
+  }
+
   List<Widget> _activeRide(CustomerState s) {
     final ride = s.ride!;
     return [
@@ -534,11 +601,7 @@ class _CustomerScreenState extends ConsumerState<CustomerScreen>
         ),
       ),
       const SizedBox(height: 20),
-      GrapMap(
-        pickup: ride.pickup,
-        dropoff: ride.dropoff,
-        driver: ride.driver?.location,
-      ),
+      RideJourneyMap(ride: ride),
       const SizedBox(height: 18),
       GrapCard(
         child: Column(

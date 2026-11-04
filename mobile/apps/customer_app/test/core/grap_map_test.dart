@@ -35,6 +35,43 @@ void main() {
         ),
   );
   testWidgets(
+    'detailed routes render all bends and fit coordinates beyond the endpoints',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: GrapMap(
+              pickup: original,
+              dropoff: original,
+              routePoints: [original, updated, original],
+              recordedPoints: [original, updated],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final lines = tester
+          .widget<PolylineLayer>(find.byType(PolylineLayer))
+          .polylines;
+      expect(lines, hasLength(2));
+      expect(lines.first.points, hasLength(3));
+      final controller = tester
+          .widget<FlutterMap>(find.byType(FlutterMap))
+          .mapController!;
+      expect(
+        controller.camera.visibleBounds.contains(const LatLng(21.03, 105.85)),
+        isTrue,
+      );
+      await tester.pumpWidget(map(original));
+      await tester.pumpAndSettle();
+      expect(
+        controller.camera.center.latitude,
+        closeTo(original.latitude, .0001),
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+  testWidgets(
     'updated GPS coordinates recenter the same map even when the place ID is unchanged',
     (tester) async {
       await tester.pumpWidget(map(original));

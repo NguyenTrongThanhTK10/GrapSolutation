@@ -53,6 +53,7 @@ public static partial class Endpoints
     }
     private static void MapReceiptFeatures(RouteGroupBuilder auth)
     {
+        MapRideRoutes(auth);
         auth.MapGet("/rides/{id}/ratings/me", (string id, HttpContext ctx, RideService service, GrapDbContext db) =>
         {
             var actor = ctx.Actor(); actor.Require(Roles.Customer, Roles.Driver); var ride = service.AuthorizedRide(actor, id);

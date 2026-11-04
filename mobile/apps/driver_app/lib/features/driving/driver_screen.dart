@@ -10,6 +10,7 @@ import 'package:grap_driver/features/journey/presentation/journey_screens.dart';
 import 'package:grap_driver/features/privacy/presentation/privacy_screens.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../statistics/statistics_screen.dart';
 import 'driver_controller.dart';
 import 'widgets/driver_offer_bar.dart';
 import 'widgets/driver_map_home.dart';
@@ -605,8 +606,17 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
   List<Widget> _earnings(DriverViewState s) {
     final e = s.earnings;
     return [
+      OutlinedButton.icon(
+        icon: const Icon(Icons.bar_chart_rounded),
+        label: const Text('Báo cáo thu nhập theo kỳ'),
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute<void>(builder: (_) => const RideStatisticsScreen()),
+        ),
+      ),
+      const SizedBox(height: 16),
       const Text(
-        'Thu nhập minh bạch.',
+        'Thu nhập lũy kế.',
         style: TextStyle(
           fontSize: 29,
           fontWeight: FontWeight.w700,
@@ -615,7 +625,7 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
       ),
       const SizedBox(height: 10),
       const Text(
-        'Tách riêng quyền lợi, tiền mặt đã thu và công nợ.',
+        'Tổng từ mọi chuyến hoàn tất. Chọn báo cáo theo kỳ để lọc ngày và xem biểu đồ.',
         style: TextStyle(fontSize: 14, color: grapMuted),
       ),
       const SizedBox(height: 22),

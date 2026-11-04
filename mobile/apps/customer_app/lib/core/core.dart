@@ -3,3 +3,5 @@ export 'domain/journey.dart';
 export 'domain/repositories.dart';
 export 'application/use_cases.dart';
 export 'providers/app_providers.dart';
+export 'domain/statistics.dart';
+export 'domain/booking_discovery.dart';

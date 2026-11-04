@@ -57,10 +57,30 @@ public sealed class RideService(IGrapStore db, IMapProvider maps, ISecrets secre
         var ride = new Ride { CustomerId = actor.Id, QuoteId = quote.Id, Pickup = quote.Pickup, Dropoff = quote.Dropoff, Fare = quote.Fare, ZoneId = quote.ZoneId, ServiceTypeCode = quote.ServiceTypeCode, PickupNote = request.PickupNote ?? "", PinHmac = secrets.Hmac(pin), CustomerPinProtected = secrets.Protect(pin) };
         quote.ConsumedRideId = ride.Id; db.Add(ride); Event(ride, "Đã tạo yêu cầu tìm tài xế", actor.Id); return ride;
     }
-    private bool Eligible(Driver driver, DateTime now)
+    private IQueryable<Driver> EligibleDrivers(DateTime now) => db.Query<Driver>().Where(driver =>
+        driver.ReviewStatus == "APPROVED" && driver.Online && driver.ActiveSessionId != null &&
+        db.Query<User>().Any(user => user.Id == driver.UserId && user.Status == "ACTIVE") &&
+        db.Query<Session>().Any(session => session.Id == driver.ActiveSessionId && session.RevokedAt == null && session.ExpiresAt > now) &&
+        driver.DocumentsExpireAt > now && driver.HeartbeatAt > now.AddSeconds(-30) && driver.LocationAt > now.AddSeconds(-30) &&
+        driver.Accuracy <= 100 && !db.Query<Assignment>().Any(a => a.DriverId == driver.Id && a.EndedAt == null));
+    private bool Eligible(Driver driver, DateTime now) => EligibleDrivers(now).Any(d => d.Id == driver.Id);
+    public NearbyServices Nearby(Actor actor, GeoPoint pickup)
     {
-        var user = Find<User>(driver.UserId);
-        return driver.ReviewStatus == "APPROVED" && user.Status == "ACTIVE" && driver.Online && driver.ActiveSessionId != null && db.Query<Session>().Any(s => s.Id == driver.ActiveSessionId && s.RevokedAt == null && s.ExpiresAt > now) && driver.DocumentsExpireAt > now && driver.HeartbeatAt > now.AddSeconds(-30) && driver.LocationAt > now.AddSeconds(-30) && driver.Accuracy <= 100 && !db.Query<Assignment>().Any(a => a.DriverId == driver.Id && a.EndedAt == null);
+        actor.Require(Roles.Customer); pickup.Validate();
+        var now = DateTime.UtcNow;
+        var zone = db.Query<ServiceZone>().ToList().FirstOrDefault(z => z.Active && Contains(z.PolygonJson, pickup));
+        var counts = new Dictionary<string, int>();
+        if (zone != null)
+        {
+            // Filter eligibility in SQL; project only fields needed for aggregate distance counts.
+            counts = EligibleDrivers(now).Where(d => d.ZoneId == zone.Id &&
+                    !db.Query<Offer>().Any(o => o.DriverId == d.Id && o.Status == "OPEN" && o.ExpiresAt > now))
+                .Select(d => new { d.ServiceTypeCode, d.Latitude, d.Longitude }).ToList()
+                .Where(d => pickup.DistanceTo(new(d.Latitude, d.Longitude, "")) <= 3000)
+                .GroupBy(d => d.ServiceTypeCode).ToDictionary(g => g.Key, g => g.Count());
+        }
+        return new(zone != null, 3000, now, new[] { "BIKE", "CAR_4", "CAR_7" }
+            .Select(code => new NearbyService(code, counts.GetValueOrDefault(code))).ToList());
     }
     public async Task Dispatch(CancellationToken ct = default)
     {
@@ -74,7 +94,7 @@ public sealed class RideService(IGrapStore db, IMapProvider maps, ISecrets secre
             var tried = db.Query<Offer>().Where(o => o.RideId == ride.Id).Select(o => o.DriverId).ToHashSet();
             var reserved = db.Query<Offer>().Where(o => o.Status == "OPEN").ToList().Where(o => o.Status == "OPEN").Select(o => o.DriverId).ToHashSet();
             var radius = (now - ride.CreatedAt).TotalSeconds < 30 ? 1000 : (now - ride.CreatedAt).TotalSeconds < 60 ? 3000 : 5000;
-            var driver = db.Query<Driver>().Where(d => d.ServiceTypeCode == ride.ServiceTypeCode && d.ZoneId == ride.ZoneId).ToList().Where(d => !tried.Contains(d.Id) && !reserved.Contains(d.Id) && Eligible(d, now)).OrderBy(d => ride.Pickup.DistanceTo(new(d.Latitude, d.Longitude, ""))).FirstOrDefault(d => ride.Pickup.DistanceTo(new(d.Latitude, d.Longitude, "")) <= radius);
+            var driver = EligibleDrivers(now).Where(d => d.ServiceTypeCode == ride.ServiceTypeCode && d.ZoneId == ride.ZoneId).ToList().Where(d => !tried.Contains(d.Id) && !reserved.Contains(d.Id)).OrderBy(d => ride.Pickup.DistanceTo(new(d.Latitude, d.Longitude, ""))).FirstOrDefault(d => ride.Pickup.DistanceTo(new(d.Latitude, d.Longitude, "")) <= radius);
             if (driver == null) continue;
             var next = new Offer { RideId = ride.Id, DriverId = driver.Id }; db.Add(next);
             db.Add(new Notification { UserId = driver.UserId, Kind = "offer", EntityId = next.Id, Title = "Có lời mời chuyến mới", Body = "Mở ứng dụng để xem lời mời còn hiệu lực." });

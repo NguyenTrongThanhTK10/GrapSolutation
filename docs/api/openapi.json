@@ -265,7 +265,54 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfIEnumerableOfAnonymousTypeOfstringAnddoubleAnddoubleAndstringAndstring"
+                  "$ref": "#/components/schemas/AnonymousTypeOfIReadOnlyListOfMapPlaceAndstring"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customers/me/nearby-services": {
+      "get": {
+        "tags": [
+          "GrapSolution.Api"
+        ],
+        "parameters": [
+          {
+            "name": "latitude",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+              "type": [
+                "number",
+                "string"
+              ],
+              "format": "double"
+            }
+          },
+          {
+            "name": "longitude",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+              "type": [
+                "number",
+                "string"
+              ],
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NearbyServices"
                 }
               }
             }
@@ -1837,6 +1884,100 @@
         }
       }
     },
+    "/api/v1/me/push-devices/{installationId}": {
+      "put": {
+        "tags": [
+          "GrapSolution.Api"
+        ],
+        "parameters": [
+          {
+            "name": "installationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushDeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "GrapSolution.Api"
+        ],
+        "parameters": [
+          {
+            "name": "installationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/me/push-test": {
+      "post": {
+        "tags": [
+          "GrapSolution.Api"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/me/ride-statistics": {
+      "get": {
+        "tags": [
+          "GrapSolution.Api"
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "tags": [
@@ -2810,30 +2951,6 @@
           }
         }
       },
-      "AnonymousTypeOfIEnumerableOfAnonymousTypeOfstringAnddoubleAnddoubleAndstringAndstring": {
-        "required": [
-          "items",
-          "source"
-        ],
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": [
-              "null",
-              "array"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/AnonymousTypeOfstringAnddoubleAnddoubleAndstring"
-            }
-          },
-          "source": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "AnonymousTypeOfIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndDateTimeAndintAndint": {
         "required": [
           "items"
@@ -3188,6 +3305,30 @@
           }
         }
       },
+      "AnonymousTypeOfIReadOnlyListOfMapPlaceAndstring": {
+        "required": [
+          "items",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/MapPlace"
+            }
+          },
+          "source": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "AnonymousTypeOfListOfDriverDocumentAndString[]": {
         "required": [
           "items",
@@ -3366,45 +3507,6 @@
               "string"
             ],
             "format": "int64"
-          }
-        }
-      },
-      "AnonymousTypeOfstringAnddoubleAnddoubleAndstring": {
-        "required": [
-          "placeId",
-          "latitude",
-          "longitude",
-          "address"
-        ],
-        "type": "object",
-        "properties": {
-          "placeId": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "latitude": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "longitude": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "address": {
-            "type": [
-              "null",
-              "string"
-            ]
           }
         }
       },
@@ -4834,6 +4936,39 @@
           }
         }
       },
+      "MapPlace": {
+        "required": [
+          "placeId",
+          "latitude",
+          "longitude",
+          "address"
+        ],
+        "type": "object",
+        "properties": {
+          "placeId": {
+            "type": "string"
+          },
+          "latitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "longitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "address": {
+            "type": "string"
+          }
+        }
+      },
       "MessageRequest": {
         "required": [
           "body"
@@ -4842,6 +4977,58 @@
         "properties": {
           "body": {
             "type": "string"
+          }
+        }
+      },
+      "NearbyService": {
+        "required": [
+          "code",
+          "availableCount"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "availableCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "NearbyServices": {
+        "required": [
+          "inServiceZone",
+          "radiusMeters",
+          "serverTime",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "inServiceZone": {
+            "type": "boolean"
+          },
+          "radiusMeters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "serverTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NearbyService"
+            }
           }
         }
       },
@@ -4855,6 +5042,9 @@
             "type": "string"
           },
           "body": {
+            "type": "string"
+          },
+          "kind": {
             "type": "string"
           },
           "entityId": {
@@ -5001,6 +5191,25 @@
             "format": "date-time"
           },
           "reasonCode": {
+            "type": "string"
+          }
+        }
+      },
+      "PushDeviceRequest": {
+        "required": [
+          "token",
+          "platform",
+          "appType"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "appType": {
             "type": "string"
           }
         }

@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 
 class GrapMap extends StatefulWidget {
   final Place? pickup, dropoff, driver;
+  final List<Place> routePoints, recordedPoints;
   final double height, borderRadius;
   final bool showControls, showAttribution;
   final ValueChanged<Place>? onPick;
@@ -18,6 +19,8 @@ class GrapMap extends StatefulWidget {
     this.pickup,
     this.dropoff,
     this.driver,
+    this.routePoints = const [],
+    this.recordedPoints = const [],
     this.height = 280,
     this.borderRadius = 16,
     this.showControls = true,
@@ -43,7 +46,9 @@ class _GrapMapState extends State<GrapMap> {
   void _watchTiles() {
     tileTimer?.cancel();
     tileTimer = Timer(const Duration(seconds: 8), () {
-      if (mounted && !tilesLoaded) { setState(() => tileTimeout = true); }
+      if (mounted && !tilesLoaded) {
+        setState(() => tileTimeout = true);
+      }
     });
   }
 
@@ -57,18 +62,28 @@ class _GrapMapState extends State<GrapMap> {
   }
 
   void _tileLoaded() {
-    if (tilesLoaded) { return; }
+    if (tilesLoaded) {
+      return;
+    }
     tilesLoaded = true;
     tileTimer?.cancel();
     if (tileTimeout) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) { setState(() => tileTimeout = false); }
+        if (mounted) {
+          setState(() => tileTimeout = false);
+        }
       });
     }
   }
 
   List<LatLng> get points => {
-    for (final place in [widget.pickup, widget.dropoff, widget.driver])
+    for (final place in [
+      widget.pickup,
+      widget.dropoff,
+      widget.driver,
+      ...widget.routePoints,
+      ...widget.recordedPoints,
+    ])
       if (place != null) LatLng(place.latitude, place.longitude),
   }.toList();
 
@@ -107,7 +122,9 @@ class _GrapMapState extends State<GrapMap> {
               pair.$1?.latitude != pair.$2?.latitude ||
               pair.$1?.longitude != pair.$2?.longitude,
         );
-    if (changed) {
+    if (changed ||
+        oldWidget.routePoints != widget.routePoints ||
+        oldWidget.recordedPoints != widget.recordedPoints) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           fitRoute();
@@ -169,7 +186,9 @@ class _GrapMapState extends State<GrapMap> {
             TileLayer(
               key: ValueKey(tileAttempt),
               tileBuilder: (context, tileWidget, tile) {
-                if (!tile.loadError && tile.imageInfo != null) { _tileLoaded(); }
+                if (!tile.loadError && tile.imageInfo != null) {
+                  _tileLoaded();
+                }
                 return tileWidget;
               },
               urlTemplate: const String.fromEnvironment(
@@ -178,18 +197,44 @@ class _GrapMapState extends State<GrapMap> {
               ),
               userAgentPackageName: 'vn.grapsolution.mobile',
             ),
-            if (pickup != null && dropoff != null)
+            if (widget.routePoints.length > 1 ||
+                widget.recordedPoints.length > 1 ||
+                (pickup != null && dropoff != null))
               PolylineLayer(
                 polylines: [
-                  Polyline(
-                    points: [
-                      LatLng(pickup.latitude, pickup.longitude),
-                      LatLng(dropoff.latitude, dropoff.longitude),
-                    ],
-                    color: grapGreen.withValues(alpha: .5),
-                    strokeWidth: 3,
-                    pattern: StrokePattern.dashed(segments: [8, 8]),
-                  ),
+                  if (widget.routePoints.length > 1)
+                    Polyline(
+                      points: widget.routePoints
+                          .map((p) => LatLng(p.latitude, p.longitude))
+                          .toList(),
+                      color: grapGreen,
+                      strokeWidth: 5,
+                      borderColor: Colors.white,
+                      borderStrokeWidth: 2,
+                    ),
+                  if (widget.recordedPoints.length > 1)
+                    Polyline(
+                      points: widget.recordedPoints
+                          .map((p) => LatLng(p.latitude, p.longitude))
+                          .toList(),
+                      color: const Color(0xff2563eb),
+                      strokeWidth: 5,
+                      borderColor: Colors.white,
+                      borderStrokeWidth: 2,
+                    ),
+                  if (widget.routePoints.length < 2 &&
+                      widget.recordedPoints.length < 2 &&
+                      pickup != null &&
+                      dropoff != null)
+                    Polyline(
+                      points: [
+                        LatLng(pickup.latitude, pickup.longitude),
+                        LatLng(dropoff.latitude, dropoff.longitude),
+                      ],
+                      color: grapGreen.withValues(alpha: .5),
+                      strokeWidth: 3,
+                      pattern: StrokePattern.dashed(segments: [8, 8]),
+                    ),
                 ],
               ),
             MarkerLayer(

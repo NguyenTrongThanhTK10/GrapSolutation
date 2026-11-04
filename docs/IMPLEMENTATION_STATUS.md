@@ -72,3 +72,13 @@ Xem [REVIEW_AND_COMPLETION.md](REVIEW_AND_COMPLETION.md) để theo dõi chi ti�
 Chuyến hiện tại được phục hồi dù tải history/earnings lỗi. Khi polling mà Ride không đổi, history/earnings chỉ tải theo khoảng 30 giây; kéo xuống làm mới hoặc Ride đổi version tải ngay. App khách dừng xử lý tín hiệu khi xuống nền, phục hồi khi resume. Thu tiền có kiểm tra journal chưa xác nhận và khóa gửi thêm cho tới khi đủ điều kiện đọc/xác nhận snapshot.
 
 Dio client kiểm tra session/cache/journal local, serialize ghi phiên, bảo vệ cả đọc storage chậm và refresh write chậm khi đổi account. Form gặp version conflict yêu cầu tải bản mới trước khi tiếp tục lưu. Xem đợt 7 trong báo cáo rà soát và VALIDATION.md để biết kiểm chứng cụ thể.
+
+
+## Thống kê cá nhân — 04/11/2026
+
+Hai app đã có báo cáo chuyến/chi tiêu hoặc quyền lợi theo kỳ, biểu đồ ngày/tháng, tổng hợp dịch vụ và sao chép CSV. API tổng hợp theo ngày kết thúc tại Asia/Ho_Chi_Minh, đúng chủ sở hữu và không bị giới hạn bởi trang lịch sử. Báo cáo quyền lợi không thay số dư/sổ cái; số đã thu là snapshot hiện tại của các chuyến kết thúc trong kỳ. Chưa có xuất file `.xlsx`/PDF, chia sẻ file native, job báo cáo định kỳ hoặc reporting warehouse. Xem mục 9 của [rà soát](REVIEW_AND_COMPLETION.md) và [kiểm chứng](VALIDATION.md).
+
+
+## Đặt xe khách thuận tiện hơn — 04/11/2026
+
+App khách có tìm điểm đón/đến với debounce, không dấu, saved/recent; GPS xác nhận ghim, đảo tuyến, so sánh 3 loại xe song song và dùng quote đúng loại/cùng tuyến. API đếm xe đủ điều kiện gần điểm đón không trả danh tính/tọa độ; query lọc SQL dùng chung với dispatch, nhưng tính bán kính vẫn ở RAM, chưa có PostGIS. Autocomplete đã có HTTP adapter contract; nhà cung cấp thật và reverse geocoding còn phải cấu hình/tích hợp. Không cam kết số xe/ETA chỉ từ snapshot; xem mục 10 trong [rà soát](REVIEW_AND_COMPLETION.md).

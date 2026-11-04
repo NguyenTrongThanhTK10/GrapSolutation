@@ -1,6 +1,39 @@
 # Kết quả kiểm tra
 
-Kiểm tra trên macOS/Apple Silicon, ngày **03/11/2026**. Toolchain thực tế: .NET SDK 10.0.401, Node 20.19.0, Flutter 3.47.6, Dart 3.13.5.
+Kiểm tra trên macOS/Apple Silicon; giao diện mobile ngày **03/11/2026**, web quản trị và thống kê mobile cập nhật ngày **04/11/2026**. Toolchain thực tế: .NET SDK 10.0.401, Node 20.19.0, Flutter 3.47.6, Dart 3.13.5.
+
+## Tối ưu tìm và đặt xe app khách — 04/11/2026
+
+- `dotnet test GrapSolution.sln --no-restore --disable-build-servers -m:1`: **41/41 đạt**, thêm 7 ca về tìm không dấu/alias, giới hạn query, số xe đúng điều kiện và scope vùng, role/coordinate validation, HTTP autocomplete adapter và lỗi dữ liệu provider. Kiểm tra đủ GPS/heartbeat cũ, hồ sơ/giấy tờ, session thu hồi, tài xế bận/giữ offer và không trả PII/tọa độ trong response đếm xe.
+- Toàn bộ `flutter test --no-pub` app khách: **77/77 đạt**, thêm 12 ca. Bao gồm báo giá 3 loại song song/quote đúng loại, dịch vụ lỗi riêng, đổi tuyến trong khi chờ giá, đổi service trong lúc tải, session failure không kẹt loading, không gọi autocomplete rỗng lúc startup/refresh ở chế độ live; saved/recent dedupe, tìm không dấu, response query chậm, alias provider; GPS chậm không đè ghim thủ công; snapshot số xe cũ/lỗi không biến thành 0 xe giả.
+- Sheet tìm kiếm được kiểm tra ở 320×640 và 640×320, chữ 160%, bàn phím chiếm 240/130 px. Nút xác nhận ghim có kiểm tra hình học trên viewport 390×844 để nằm trên bàn phím 200 px và vùng cử chỉ 34 px.
+- `flutter analyze --no-pub --no-fatal-infos`: không có error/warning; 23 lint info có sẵn trong app khách. Script QA tạm đã dọn; không thêm dependency hoặc quyền native.
+- Web dùng chung backend: chạy lại toàn bộ Chrome E2E **21/21 đạt** trên Vite/API local, bao gồm quote/đặt/hủy, quyền các vai trò và nghiệp vụ có sẵn. Mã web không thay đổi trong đợt này.
+- Đã xem ảnh dựng từ widget thật, Roboto, 390×844: [trang đặt xe](qa/customer-booking-home.png), [so sánh giá](qa/customer-booking-comparison.png), [tìm kiếm](qa/customer-booking-search.png). Số xe/giá trong các ảnh là dữ liệu giả lập QA; tile mạng bị chặn bởi widget test nên bản đồ có thể trống. Nút đặt và thanh điều hướng được kiểm tra nằm trong viewport khi chụp.
+- Snapshot OpenAPI được xuất lại từ API đang chạy: **90 route paths**. Không đổi schema; app tài xế không đổi mã trong đợt này. Chưa đo tải lớn, chưa xác minh PostgreSQL/spatial index, provider geocoding thật hoặc GPS trên thiết bị vật lý. Chưa build lại APK/iOS sau thay đổi này.
+
+## Báo cáo thống kê mobile — 04/11/2026
+
+- Backend: `dotnet test GrapSolution.sln --no-restore --disable-build-servers -m:1` **34/34 đạt**, gồm 3 bài mới trong `StatisticsTests.cs` dùng HTTP + SQLite thật. Có kiểm tra 41 chuyến hoàn tất vượt trang lịch sử, tổng theo dịch vụ, partial payment, hai biên ngày Việt Nam, ngày tạo khác ngày kết thúc, loại trừ active, quyền của tài xế cuối và không cộng assignment cũ, dữ liệu rỗng, ngày không hợp lệ và giới hạn 366 ngày.
+- Toàn bộ `flutter test --no-pub`: **65/65 customer, 69/69 driver**, tổng **134/134 đạt**. Mỗi app thêm 3 repository/domain test và 6 widget test: ngày Việt Nam, request ngày lịch, mapping/CSV, đổi kỳ và đổi account khi response cũ đang chờ, khóa xuất khi lỗi, thử lại, khoảng ngày tùy chọn, 320×640/640×320 với chữ 160%.
+- `flutter analyze --no-pub --no-fatal-infos` ở cả hai app: không có error/warning; mỗi app còn **23 lint info có sẵn** về ngoặc `if`. Không có lint mới trong phần thống kê.
+- Kiểm tra trực tiếp API local với `customer-0`, `driver-user-0`: trả đúng role/kỳ/totals và trạng thái rỗng; phiên kiểm tra được đăng xuất. Đã xuất OpenAPI từ API đang chạy: **89 route paths** trong `docs/api/openapi.json`.
+- Đã dựng và xem ảnh widget thật ở 390×844, font Roboto, dữ liệu giả lập nhất quán tổng/bucket/dịch vụ: [khách tổng quan](qa/customer-statistics-overview.png), [biểu đồ khách](qa/customer-statistics-chart.png), [tài xế tổng quan](qa/driver-statistics-overview.png), [biểu đồ tài xế](qa/driver-statistics-chart.png). Các bài dựng ảnh chạy riêng, không cộng vào 134 kiểm thử ở trên; script QA tạm đã dọn.
+- Không thêm dependency hoặc quyền native; không đổi schema. Đợt này chưa build lại APK/iOS, chưa thử trên thiết bị vật lý hoặc kiểm tra PostgreSQL thật; clipboard được kiểm tra qua platform channel giả lập. Báo cáo hiện sao chép CSV, chưa xuất file Excel/PDF hoặc gửi báo cáo định kỳ.
+- Web không thay đổi trong đợt thống kê; kết quả 21 E2E thuộc đợt web bên dưới, không phải lần chạy lại mới trong đợt này.
+
+## Hoàn thiện web quản trị — 04/11/2026
+
+- `admin_portal`: `npm run build` đạt kiểm tra Vue/TypeScript và build production. Vite còn hai cảnh báo chú thích PURE trong dependency SignalR; không chặn build.
+- Toàn bộ `npm run test:e2e`: **21/21 đạt**, Chrome headless, Node 20.19.0, API Development + SQLite local và Vite; gồm 7 bài có sẵn và 14 bài mới tại `admin_portal/tests/web-completion.spec.ts`.
+- API thật: dashboard và hồ sơ của cả 7 vai trò nhân sự không gọi endpoint admin bị từ chối; điều hướng phân hệ chưa được cấp quyền có giải thích/đường về; tìm tài xế khi response đầu bị giữ chậm vẫn áp từ khóa mới nhất.
+- Chi tiết chuyến tải API thật; đổi query ID trong cùng view sang ID giả lập 404 không giữ timeline hoặc thao tác của chuyến trước.
+- Hỗ trợ dùng response giả lập cho OPEN/CLOSED để kiểm tra danh sách bước chuyển, bộ lọc phiếu đóng và hội thoại chỉ đọc. Phân trang nhật ký dùng hai trang giả lập để kiểm tra quay lại/tìm mới. Các bài này xác minh UI, không thay thế integration test quy tắc backend.
+- Bố cục vận hành được kiểm tra ở **320×640, 390×844, 640×320**; không tràn ngang toàn trang trên tổng quan, chuyến, tài xế, khách, giá cước, hỗ trợ, nhật ký và cấu hình. Bảng có vùng cuộn riêng; hộp thoại chuyến vừa viewport 390 px. Tài chính có kiểm tra riêng bốn tab và form đề nghị ở 320 px.
+- Menu có kiểm tra nút đóng, Escape, trả focus và inert khi ẩn. Đây là kiểm tra bàn phím cơ bản, chưa phải đánh giá accessibility toàn diện hoặc thử screen reader.
+- Bài kiểm tra nhiều kích thước dùng lại snapshot API GET đã tải thành công trong cùng phiên để kiểm tra bố cục; các ca nghiệp vụ và quyền vẫn dùng API thật theo phạm vi ở trên. Phiên nhân sự chỉ đọc được dùng lại trong file test để tuân thủ giới hạn đăng nhập. Không tắt/bỏ qua rate limiter của backend; khi chạy nhiều bộ liên tiếp cần đợi cửa sổ 1 phút nếu gặp 429.
+- Đã xem trực tiếp ảnh mới: [desktop](qa/web-dashboard-desktop.png), [mobile](qa/web-dashboard-mobile.png), [chi tiết chuyến mobile](qa/web-ride-mobile.png). Tile OSM có lúc tải chậm hoặc thất bại, có lúc hiển thị đầy đủ; bộ E2E không coi việc tải mọi tile là điều kiện đạt.
+- `git diff --check` đạt. Chỉ thay đổi web và tài liệu; không chạy lại kiểm thử backend/mobile trong đợt này. Chưa kiểm tra trình duyệt khác, thiết bị vật lý, production login hay triển khai production.
 
 ## Hoàn thiện giao diện v2 — 03/11/2026
 

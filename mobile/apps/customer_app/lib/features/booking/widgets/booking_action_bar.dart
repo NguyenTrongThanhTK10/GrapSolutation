@@ -5,11 +5,15 @@ import 'package:grap_customer/core/widgets/app_widgets.dart';
 class BookingActionBar extends StatelessWidget {
   final QuoteSnapshot? quote;
   final bool busy, hasRoute;
+  final bool loadingQuotes;
+  final VoidCallback? onChooseRoute;
   final VoidCallback onQuote, onBook;
 
   const BookingActionBar({
     super.key,
     this.quote,
+    this.loadingQuotes = false,
+    this.onChooseRoute,
     required this.busy,
     required this.hasRoute,
     required this.onQuote,
@@ -29,12 +33,24 @@ class BookingActionBar extends StatelessWidget {
           style: const TextStyle(color: grapMuted, fontSize: 14),
         ),
         action: FilledButton(
-          onPressed: busy || !hasRoute ? null : onQuote,
+          onPressed: busy || loadingQuotes
+              ? null
+              : !hasRoute
+              ? onChooseRoute
+              : onQuote,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Flexible(
-                child: Text(busy ? 'Đang lấy giá…' : 'Xem giá chuyến đi'),
+                child: Text(
+                  loadingQuotes
+                      ? 'Đang so sánh giá…'
+                      : busy
+                      ? 'Đang xử lý…'
+                      : !hasRoute && onChooseRoute != null
+                      ? 'Chọn hành trình'
+                      : 'Xem giá chuyến đi',
+                ),
               ),
               const SizedBox(width: 10),
               const Icon(Icons.arrow_forward_rounded, size: 20),
@@ -85,7 +101,7 @@ class BookingActionBar extends StatelessWidget {
           ],
         ),
         action: FilledButton(
-          onPressed: busy
+          onPressed: busy || loadingQuotes
               ? null
               : seconds == 0
               ? onQuote

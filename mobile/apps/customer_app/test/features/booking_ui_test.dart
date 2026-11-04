@@ -71,6 +71,23 @@ class BookingController extends CustomerController {
   }
 }
 
+class NoNearby implements BookingDiscoveryRepository {
+  @override
+  Future<NearbyAvailability> nearby(Place pickup) async => NearbyAvailability(
+    inServiceZone: true,
+    radiusMeters: 3000,
+    counts: const {'BIKE': 0, 'CAR_4': 0, 'CAR_7': 0},
+    freshUntil: DateTime.now().add(const Duration(seconds: 20)),
+  );
+}
+
+class EmptyJourney implements JourneyRepository {
+  @override
+  Future<List<SavedAddress>> addresses() async => [];
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 Future<void> mount(
   WidgetTester tester,
   Widget child, {
@@ -82,6 +99,8 @@ Future<void> mount(
       overrides: [
         sessionProvider.overrideWith(SignedIn.new),
         pendingOperationsProvider.overrideWith((ref) async => []),
+        bookingDiscoveryRepositoryProvider.overrideWithValue(NoNearby()),
+        journeyRepositoryProvider.overrideWithValue(EmptyJourney()),
         if (controller != null)
           customerControllerProvider.overrideWith(() => controller),
       ],

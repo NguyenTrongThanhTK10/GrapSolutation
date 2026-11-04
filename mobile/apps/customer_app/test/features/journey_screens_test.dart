@@ -1,10 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grap_customer/core/core.dart';
 import 'package:grap_customer/core/widgets/app_widgets.dart';
 import 'package:grap_customer/features/journey/presentation/journey_screens.dart';
 import 'package:grap_customer/features/privacy/presentation/privacy_screens.dart';
+import 'package:grap_customer/core/domain/ride_route.dart';
+import 'package:grap_customer/core/providers/ride_route_providers.dart';
 
 class Session extends SessionController {
   @override
@@ -102,6 +107,7 @@ class JourneyFake implements JourneyRepository {
 
 Widget app(JourneyFake repo, Widget child) => ProviderScope(
   overrides: [
+    rideRouteProvider.overrideWith((ref, key) async => const RideRoute()),
     journeyRepositoryProvider.overrideWithValue(repo),
     sessionProvider.overrideWith(Session.new),
   ],
@@ -121,7 +127,27 @@ class ReviewFake implements RideRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+Future<void> scrollReceiptTo(WidgetTester tester, Finder target) async {
+  // Drag the receipt margin so the interactive map does not consume the scroll.
+  for (var i = 0; i < 20 && target.evaluate().isEmpty; i++) {
+    await tester.dragFrom(
+      tester.getBottomLeft(find.byType(ListView)) + const Offset(8, -20),
+      const Offset(0, -300),
+    );
+    await tester.pumpAndSettle();
+  }
+  await tester.ensureVisible(target);
+}
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(
+    () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (call) async => Directory.systemTemp.path,
+        ),
+  );
   testWidgets('a version conflict locks stale edits and offers a fresh list', (
     t,
   ) async {
@@ -154,6 +180,9 @@ void main() {
       await t.pumpWidget(
         ProviderScope(
           overrides: [
+            rideRouteProvider.overrideWith(
+              (ref, key) async => const RideRoute(),
+            ),
             journeyRepositoryProvider.overrideWithValue(repo),
             rideRepositoryProvider.overrideWithValue(reviews),
             sessionProvider.overrideWith(Session.new),
@@ -165,7 +194,7 @@ void main() {
         ),
       );
       await t.pumpAndSettle();
-      await t.scrollUntilVisible(find.text('Sửa đánh giá'), 300);
+      await scrollReceiptTo(t, find.text('Sửa đánh giá'));
       await t.tap(find.text('Sửa đánh giá'));
       await t.pumpAndSettle();
       await t.tap(find.byTooltip('3 sao'));
@@ -226,10 +255,7 @@ void main() {
         app(JourneyFake(), const RideReceiptScreen(rideId: '1')),
       );
       await t.pumpAndSettle();
-      await t.scrollUntilVisible(
-        find.textContaining('Đã hết thời hạn 24 giờ'),
-        300,
-      );
+      await scrollReceiptTo(t, find.textContaining('Đã hết thời hạn 24 giờ'));
       expect(find.textContaining('Đã hết thời hạn 24 giờ'), findsOneWidget);
       expect(find.text('Sửa đánh giá'), findsNothing);
       expect(find.text('Gửi đánh giá'), findsNothing);

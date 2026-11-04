@@ -86,3 +86,33 @@ Tối đa 20 địa chỉ, label không trùng theo account; tối đa 5 liên h
 - POST `/admin/account-deletion-requests/{id}/review`: SecurityAdmin, Idempotency-Key + `{expectedVersion,decision,reason}`; decision là IN_REVIEW, NEEDS_INFORMATION hoặc REJECTED.
 
 Mỗi user có tối đa một yêu cầu mở (REQUESTED, BLOCKED_OBLIGATIONS, IN_REVIEW, NEEDS_INFORMATION). Blockers: ACTIVE_RIDE, OUTSTANDING_PAYMENT, DRIVER_BALANCE_PENDING. IN_REVIEW yêu cầu không còn blocker; người dùng được rút thành WITHDRAWN. Không có quyết định COMPLETED/xóa dữ liệu tự động; response luôn `dataDeleted:false`. SecurityAdmin được đọc/phản hồi ticket thuộc ACCOUNT_DELETION cùng vùng, không được mở mọi ticket.
+
+
+## Thống kê cá nhân theo kỳ
+
+`GET /me/ride-statistics?from=2026-10-29&to=2026-11-04` dành cho Customer/Driver đã đăng nhập. Hai tham số là **ngày lịch `yyyy-MM-dd` tại Asia/Ho_Chi_Minh**, bao gồm cả ngày đầu và ngày cuối. Phải truyền cả hai hoặc bỏ cả hai (mặc định 7 ngày đến hôm nay). Tối đa 366 ngày, không vượt hôm nay; khoảng không hợp lệ trả 400.
+
+Response có `from`, `to`, `timezone`, `currency`, `role`, `generatedAt`, `granularity`, `totals`, `buckets`, `services`. `totals` gồm `totalRides`, `completedRides`, `canceledRides`, `unfulfilledRides`, `grossFare`, `commission`, `entitlement`, `payable`, `paid`, `outstanding`. Mỗi bucket có `date` và `totals`; mỗi dịch vụ có `service` và `totals`.
+
+- Chỉ tính trạng thái COMPLETED/CANCELED/NO_DRIVER/EXPIRED có EndedAt trong kỳ. Truy vấn UTC là `[đầu ngày from, đầu ngày sau to)`. Khác lịch sử, báo cáo lọc **ngày kết thúc**, không lọc CreatedAt. Chuyến active hoặc không có EndedAt chưa được tính.
+- Tổng kết không phụ thuộc pageSize của lịch sử. Kỳ đến 31 ngày có bucket theo ngày; kỳ dài hơn có bucket theo tháng. Ngày/tháng không có chuyến vẫn trả giá trị 0; tháng đầu/cuối chỉ tổng hợp phần nằm trong kỳ.
+- Khách chỉ có dữ liệu của chính mình. Tài xế chỉ có chuyến có DriverId cuối cùng của mình; assignment cũ không nhận quyền lợi của tài xế cuối cùng. Nhân sự không được dùng route này để đọc báo cáo người khác.
+- Các số tiền chỉ cộng từ chuyến COMPLETED. `payable` là cước phải trả; `paid` là số tiền hiện đã ghi nhận của các chuyến đó; `outstanding` cộng phần còn lại không âm từng chuyến. Đây không phải báo cáo dòng tiền theo ngày thu tiền.
+- `entitlement = grossFare - commission` dành cho tài xế, không phải số dư có thể rút. Customer nhận commission/entitlement bằng 0; ứng dụng khách không xuất các cột này.
+- Không trả địa chỉ, số điện thoại, ID khách/tài xế/chuyến hoặc tọa độ trong báo cáo. Không thay đổi ledger, balance hoặc database schema.
+
+
+## Tìm địa điểm và số xe gần điểm đón
+
+- `GET /places/autocomplete?q=<URL-encoded>`: authenticated, query tối đa 150 ký tự. Trả `items[{placeId,latitude,longitude,address}]` (tối đa 20 từ HTTP provider) và `source=DEVELOPMENT_FIXTURE|CONFIGURED_PROVIDER`. Fixture hỗ trợ tìm không dấu/nhiều từ/alias sân bay TSN-SGN. Provider cấu hình có lỗi hoặc tọa độ không hợp lệ trả 503; không fallback fixture.
+- HTTP map adapter mới nhận `GET {Maps__BaseUrl}/autocomplete?q=...`, trả `{items:[{placeId,latitude,longitude,address}]}`. ID không rỗng/tối đa 200, địa chỉ không rỗng/tối đa 500, tọa độ hữu hạn/đúng miền. Timeout theo HTTP client maps hiện có. `POST /route` giữ hợp đồng cũ.
+- `GET /customers/me/nearby-services?latitude=10.7721&longitude=106.6983`: Customer-only; tọa độ phải hợp lệ. Trả `{inServiceZone,radiusMeters:3000,serverTime,items:[{code,availableCount}]}` với BIKE/CAR_4/CAR_7. Ngoài vùng đang active trả `inServiceZone:false` và 0 cho các loại xe.
+- Bộ lọc xe dùng chung với dispatch; không tính xe có open offer còn hạn, assignment chưa đóng, session/user không hoạt động, hồ sơ/giấy tờ không hợp lệ, GPS/heartbeat quá 30 giây hoặc accuracy quá 100 m. Chỉ trả số lượng, không trả ID/biển số/số điện thoại/tọa độ tài xế.
+- Số lượng là snapshot theo vùng và bán kính địa lý, không giữ chỗ/không phải ETA. App ẩn số liệu sau 20 giây và cho cập nhật bằng tay. Lỗi tải có trạng thái riêng, không tự coi là 0 xe.
+
+## Bản đồ hành trình chuyến xe
+
+- `GET /rides/{id}/route`: yêu cầu đăng nhập và cùng quyền xem chuyến như `/rides/{id}`. Trả `{rideId,distanceMeters,durationSeconds,routeSource,geometry,samples:[{latitude,longitude,recordedAt}],serverTime}`. Cự ly/thời gian là dự kiến từ báo giá, không phải số đo GPS thực tế.
+- `geometry` là chuỗi JSON đã lưu từ nhà cung cấp bản đồ hoặc `null`. Adapter `/route` cần trả `geometry` dạng GeoJSON `{"type":"LineString","coordinates":[[longitude,latitude],...]}`. Ứng dụng bỏ qua geometry thiếu/sai định dạng và ghi rõ khi chỉ nối thẳng hai điểm. Demo provider hiện không có geometry chi tiết.
+- `samples` chỉ lấy từ sự kiện `start` đến thời điểm kết thúc chuyến (hoặc hiện tại), đồng thời nằm trong thời gian assignment của tài xế thuộc chuyến. Không có `start` thì danh sách rỗng. Loại GPS có sai số ngoài `(0,100]` mét; sắp xếp theo thời gian ghi nhận rồi sequence. Không trả session ID hoặc thông tin tài xế trong mẫu GPS.
+- App khách hiển thị tuyến dự kiến màu xanh lá và GPS đã ghi nhận màu xanh dương trên chuyến đang chạy và màn hình chi tiết lịch sử. Có xem toàn màn hình, thao tác phóng/thu và nút căn toàn bộ hành trình; lỗi tải tuyến có nút thử lại riêng.

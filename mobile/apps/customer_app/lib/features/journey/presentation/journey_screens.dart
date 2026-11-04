@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grap_customer/core/core.dart';
 import 'package:grap_customer/core/widgets/app_widgets.dart';
+import 'ride_journey_map.dart';
 
 String journeyDate(DateTime at) => at.toLocal().toString().substring(0, 16);
 
@@ -242,6 +243,8 @@ class RideReceiptScreen extends ConsumerWidget {
             return ListView(
               padding: const EdgeInsets.all(22),
               children: [
+                RideJourneyMap(ride: r),
+                const SizedBox(height: 18),
                 GrapCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,

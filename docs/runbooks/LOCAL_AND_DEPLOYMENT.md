@@ -28,7 +28,7 @@ Không tự đánh dấu payment succeeded, sửa driver balance hoặc xóa led
 
 ## Mạng và provider
 
-HTTP map adapter nhận `POST {Maps__BaseUrl}/route` với pickup/dropoff/serviceTypeCode; trả distanceMeters/durationSeconds/geometry. Cần triển khai adapter theo provider đã chọn, kiểm tra quota và license. Autocomplete/geocoding thật còn phải nối.
+HTTP map adapter nhận `POST {Maps__BaseUrl}/route` với pickup/dropoff/serviceTypeCode; trả distanceMeters/durationSeconds/geometry. Cần triển khai adapter theo provider đã chọn, kiểm tra quota và license. Autocomplete đi qua `GET {Maps__BaseUrl}/autocomplete?q=...` và trả `{items:[{placeId,latitude,longitude,address}]}`; adapter thật phải triển khai endpoint này cùng `/route`. Khi có Maps__BaseUrl, lỗi tìm kiếm trả 503 và app vẫn cho chọn ghim; không thay bằng dữ liệu demo. Reverse geocoding tự lấy tên đường từ GPS vẫn chưa tích hợp.
 
 SMS hiện cố ý trả 503. Development dùng tài khoản mẫu riêng; không có OTP mặc định/hardcode được trả từ API. Push, gateway, promo và self-service payout chưa bật.
 
