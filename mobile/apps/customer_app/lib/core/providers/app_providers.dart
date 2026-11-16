@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/use_cases.dart';
@@ -159,11 +162,82 @@ final rideStatisticsProvider = FutureProvider.autoDispose
 final bookingDiscoveryRepositoryProvider = Provider<BookingDiscoveryRepository>(
   (ref) => ApiBookingDiscoveryRepository(ref.watch(apiClientProvider)),
 );
-final nearbyServicesProvider = FutureProvider.autoDispose
+final appForegroundProvider = NotifierProvider<AppForeground, bool>(
+  AppForeground.new,
+);
+
+class AppForeground extends Notifier<bool> {
+  @override
+  bool build() {
+    final listener = AppLifecycleListener(
+      onStateChange: (next) {
+        state = next == AppLifecycleState.resumed;
+      },
+    );
+    ref.onDispose(listener.dispose);
+    final current = WidgetsBinding.instance.lifecycleState;
+    return current == null || current == AppLifecycleState.resumed;
+  }
+}
+
+final nearbyServicesProvider = StreamProvider.autoDispose
     .family<NearbyAvailability, Place>((ref, pickup) {
       final user = ref.watch(sessionProvider).value;
       if (user == null) {
         throw const Failure('SESSION_REQUIRED', 'Vui lòng đăng nhập lại.');
       }
-      return ref.watch(bookingDiscoveryRepositoryProvider).nearby(pickup);
+      final foreground = ref.watch(appForegroundProvider);
+      if (!foreground) return const Stream<NearbyAvailability>.empty();
+      final repository = ref.watch(bookingDiscoveryRepositoryProvider);
+      final stream = StreamController<NearbyAvailability>();
+      var disposed = false, loading = false, pending = false;
+      Timer? debounce;
+      Future<void> load() async {
+        if (disposed) return;
+        if (loading) {
+          pending = true;
+          return;
+        }
+        loading = true;
+        try {
+          final result = await repository.nearby(pickup);
+          if (!disposed) stream.add(result);
+        } catch (error, stack) {
+          if (!disposed) stream.addError(error, stack);
+        } finally {
+          loading = false;
+          if (!disposed && pending) {
+            pending = false;
+            debounce ??= Timer(const Duration(milliseconds: 300), () {
+              debounce = null;
+              unawaited(load());
+            });
+          }
+        }
+      }
+
+      void schedule() {
+        if (disposed || debounce != null) return;
+        debounce = Timer(const Duration(milliseconds: 300), () {
+          debounce = null;
+          unawaited(load());
+        });
+      }
+
+      final subscription = repository
+          .updates(pickup)
+          .listen((_) => schedule(), onError: (Object _) => schedule());
+      final polling = Timer.periodic(
+        const Duration(seconds: 5),
+        (_) => schedule(),
+      );
+      ref.onDispose(() {
+        disposed = true;
+        debounce?.cancel();
+        polling.cancel();
+        unawaited(subscription.cancel());
+        unawaited(stream.close());
+      });
+      unawaited(load());
+      return stream.stream;
     }, retry: (_, _) => null);

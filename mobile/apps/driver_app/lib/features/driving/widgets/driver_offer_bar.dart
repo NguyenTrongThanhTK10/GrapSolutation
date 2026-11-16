@@ -25,41 +25,81 @@ class DriverOfferBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 12,
-                  runSpacing: 4,
-                  children: [
-                    Text(
-                      'Bạn nhận ${vnd(offer.entitlement)}',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: grapInk,
-                      ),
-                    ),
-                    Text(
-                      seconds > 0 ? 'Còn $seconds giây' : 'Đã hết hạn',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: seconds <= 5 ? grapDanger : grapGreen,
-                      ),
-                    ),
-                  ],
+                const Text(
+                  'Lời mời chuyến mới',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: grapMuted,
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Đón tại ${offer.pickup.address}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14, color: grapMuted),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: (seconds / 15).clamp(0, 1),
+                    minHeight: 4,
+                    color: seconds <= 5 ? grapDanger : grapGreen,
+                    backgroundColor: const Color(0xffe8efea),
+                    semanticsLabel: seconds > 0
+                        ? 'Còn $seconds giây để nhận chuyến'
+                        : 'Lời mời đã hết hạn',
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${serviceLabel(offer.service)} · Thu khách ${vnd(offer.payable)}',
-                  style: const TextStyle(fontSize: 14, color: grapMuted),
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(context).height * .28,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 12,
+                          runSpacing: 4,
+                          children: [
+                            Text(
+                              'Bạn nhận ${vnd(offer.entitlement)}',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: grapInk,
+                              ),
+                            ),
+                            Text(
+                              seconds > 0 ? 'Còn $seconds giây' : 'Đã hết hạn',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: seconds <= 5 ? grapDanger : grapGreen,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Đón tại ${offer.pickup.address}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: grapMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${serviceLabel(offer.service)} · Thu khách ${vnd(offer.payable)}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: grapMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(

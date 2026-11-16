@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using GrapSolution.Domain;
@@ -11,9 +12,9 @@ namespace GrapSolution.Tests;
 
 public sealed class BookingDiscoveryTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
-    private async Task<HttpClient> Login(string id)
+    private async Task<HttpClient> Login(string id, ApiFactory? source = null)
     {
-        var c = factory.CreateClient();
+        var c = (source ?? factory).CreateClient();
         var response = await c.PostAsJsonAsync("/api/v1/auth/development", new { userId = id });
         response.EnsureSuccessStatusCode();
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -38,6 +39,7 @@ public sealed class BookingDiscoveryTests(ApiFactory factory) : IClassFixture<Ap
     public async Task Nearby_counts_only_eligible_unreserved_drivers_and_never_returns_their_identity_or_coordinates()
     {
         var c = await Login("customer-7");
+        string bikeId;
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<GrapDbContext>();
@@ -51,13 +53,15 @@ public sealed class BookingDiscoveryTests(ApiFactory factory) : IClassFixture<Ap
                     Latitude = 10.7721, Longitude = 106.6983, Accuracy = 10 };
                 db.Add(user); db.Add(session); db.Add(d); return d;
             }
-            Add(); Add("CAR_7");
+            bikeId = Add().Id; Add("CAR_7");
             Add().Online = false;
             Add().LocationAt = now.AddMinutes(-5);
             Add().HeartbeatAt = now.AddMinutes(-5);
             Add().DocumentsExpireAt = now.AddDays(-1);
             Add().ReviewStatus = "PENDING_REVIEW";
             Add().Accuracy = 500;
+            Add().Accuracy = 0;
+            Add().LocationAt = now.AddMinutes(1);
             Add().ActiveSessionId = null;
             Add().Latitude = 10.9;
             Add().ZoneId = "different-zone";
@@ -78,11 +82,39 @@ public sealed class BookingDiscoveryTests(ApiFactory factory) : IClassFixture<Ap
         var counts = json.GetProperty("items").EnumerateArray().ToDictionary(x => x.GetProperty("code").GetString()!, x => x.GetProperty("availableCount").GetInt32());
         Assert.Equal(1, counts["BIKE"]); Assert.Equal(0, counts["CAR_4"]); Assert.Equal(1, counts["CAR_7"]);
         foreach (var field in new[] { "driverId", "latitude", "longitude", "plate", "phone", "Private Driver" }) Assert.DoesNotContain(field, json.GetRawText());
+
+        const string locations = "/api/v1/customers/me/nearby-drivers?latitude=10.7721&longitude=106.6983";
+        var snapshot = (await c.GetFromJsonAsync<JsonElement>(locations));
+        var markers = snapshot.GetProperty("drivers");
+        Assert.Equal(2, markers.GetArrayLength());
+        foreach (var field in new[] { "driverId", "userId", "plate", "phone", "Private Driver", bikeId }) Assert.DoesNotContain(field, markers.GetRawText());
+        var bike = markers.EnumerateArray().Single(m => m.GetProperty("serviceTypeCode").GetString() == "BIKE");
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<GrapDbContext>();
+            var d = await db.Set<Driver>().FindAsync(bikeId);
+            d!.Latitude = 10.773234; d.Longitude = 106.699456; d.LocationAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+        }
+        var moved = await c.GetFromJsonAsync<JsonElement>(locations);
+        var movedBike = moved.GetProperty("drivers").EnumerateArray().Single(m => m.GetProperty("serviceTypeCode").GetString() == "BIKE");
+        Assert.Equal(bike.GetProperty("markerId").GetString(), movedBike.GetProperty("markerId").GetString());
+        Assert.Equal(10.7732, movedBike.GetProperty("latitude").GetDouble());
+        Assert.Equal(106.6995, movedBike.GetProperty("longitude").GetDouble());
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<GrapDbContext>();
+            (await db.Set<Driver>().FindAsync(bikeId))!.LocationAt = DateTime.UtcNow.AddSeconds(-31);
+            await db.SaveChangesAsync();
+        }
+        var stale = await c.GetFromJsonAsync<JsonElement>(locations);
+        Assert.DoesNotContain(stale.GetProperty("drivers").EnumerateArray(), m => m.GetProperty("serviceTypeCode").GetString() == "BIKE");
     }
-    [Fact]
-    public async Task Nearby_requires_customer_role_and_valid_coordinate_and_handles_outside_service_area()
+    [Theory]
+    [InlineData("/api/v1/customers/me/nearby-services")]
+    [InlineData("/api/v1/customers/me/nearby-drivers")]
+    public async Task Nearby_requires_customer_role_and_valid_coordinate_and_handles_outside_service_area(string path)
     {
-        const string path = "/api/v1/customers/me/nearby-services";
         Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateClient().GetAsync(path + "?latitude=10&longitude=106")).StatusCode);
         var driver = await Login("driver-user-9");
         Assert.Equal(HttpStatusCode.Forbidden, (await driver.GetAsync(path + "?latitude=10&longitude=106")).StatusCode);
@@ -92,6 +124,60 @@ public sealed class BookingDiscoveryTests(ApiFactory factory) : IClassFixture<Ap
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.False(json.GetProperty("inServiceZone").GetBoolean());
         Assert.All(json.GetProperty("items").EnumerateArray(), item => Assert.Equal(0, item.GetProperty("availableCount").GetInt32()));
+        if (json.TryGetProperty("drivers", out var markers)) Assert.Equal(0, markers.GetArrayLength());
+    }
+
+    private static async Task<JsonElement> ReceiveHub(WebSocket socket, Func<JsonElement, bool> match, CancellationToken ct)
+    {
+        var buffer = new byte[8192]; var pending = "";
+        while (true)
+        {
+            var received = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), ct);
+            Assert.NotEqual(WebSocketMessageType.Close, received.MessageType);
+            pending += Encoding.UTF8.GetString(buffer, 0, received.Count);
+            while (pending.IndexOf('\u001e') is var end && end >= 0)
+            {
+                using var document = JsonDocument.Parse(pending[..end]); pending = pending[(end + 1)..];
+                if (match(document.RootElement)) return document.RootElement.Clone();
+            }
+        }
+    }
+    [Fact]
+    public async Task Nearby_subscription_receives_location_invalidation_without_driver_data_and_rejects_driver_role()
+    {
+        using var source = new ApiFactory();
+        var customer = await Login("customer-0", source);
+        var driver = await Login("driver-user-0", source);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        async Task<WebSocket> Connect(HttpClient client)
+        {
+            var websocket = source.Server.CreateWebSocketClient();
+            websocket.ConfigureRequest = request => request.Headers.Authorization = client.DefaultRequestHeaders.Authorization!.ToString();
+            var socket = await websocket.ConnectAsync(new Uri("ws://localhost/hubs/rides"), timeout.Token);
+            await socket.SendAsync(Encoding.UTF8.GetBytes("{\"protocol\":\"json\",\"version\":1}\u001e"), WebSocketMessageType.Text, true, timeout.Token);
+            await ReceiveHub(socket, j => !j.TryGetProperty("type", out _), timeout.Token);
+            return socket;
+        }
+        const string subscribe = "{\"type\":1,\"invocationId\":\"1\",\"target\":\"SubscribeNearby\",\"arguments\":[10.7721,106.6983]}\u001e";
+        using var customerSocket = await Connect(customer);
+        await customerSocket.SendAsync(Encoding.UTF8.GetBytes(subscribe), WebSocketMessageType.Text, true, timeout.Token);
+        var completion = await ReceiveHub(customerSocket, j => j.TryGetProperty("invocationId", out _), timeout.Token);
+        Assert.False(completion.TryGetProperty("error", out _));
+        using var driverSocket = await Connect(driver);
+        await driverSocket.SendAsync(Encoding.UTF8.GetBytes(subscribe), WebSocketMessageType.Text, true, timeout.Token);
+        var denied = await ReceiveHub(driverSocket, j => j.TryGetProperty("invocationId", out _), timeout.Token);
+        Assert.True(denied.TryGetProperty("error", out _));
+        var availability = await driver.GetFromJsonAsync<JsonElement>("/api/v1/drivers/me/availability");
+        (await driver.PostAsJsonAsync("/api/v1/drivers/me/availability", new { online = true, expectedVersion = availability.GetProperty("version").GetInt32() })).EnsureSuccessStatusCode();
+        (await driver.PostAsync("/api/v1/drivers/me/heartbeat", null)).EnsureSuccessStatusCode();
+        (await driver.PostAsJsonAsync("/api/v1/drivers/me/location-batches", new { samples = new[] { new { latitude = 10.7721, longitude = 106.6983, accuracyMeters = 10, recordedAt = DateTime.UtcNow, sequence = 1 } } })).EnsureSuccessStatusCode();
+        var update = await ReceiveHub(customerSocket, j => j.TryGetProperty("target", out var target) && target.GetString() == "nearby.drivers.changed", timeout.Token);
+        Assert.DoesNotContain("latitude", update.GetRawText()); Assert.DoesNotContain("driverId", update.GetRawText());
+        var snapshot = await customer.GetFromJsonAsync<JsonElement>("/api/v1/customers/me/nearby-drivers?latitude=10.7721&longitude=106.6983");
+        Assert.Single(snapshot.GetProperty("drivers").EnumerateArray());
+        (await driver.PostAsJsonAsync("/api/v1/drivers/me/availability", new { online = false, expectedVersion = availability.GetProperty("version").GetInt32() + 1 })).EnsureSuccessStatusCode();
+        var offline = await customer.GetFromJsonAsync<JsonElement>("/api/v1/customers/me/nearby-drivers?latitude=10.7721&longitude=106.6983");
+        Assert.Empty(offline.GetProperty("drivers").EnumerateArray());
     }
 }
 

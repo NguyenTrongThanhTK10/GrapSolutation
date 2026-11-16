@@ -12,6 +12,8 @@ class DriverViewState {
   final List<RideSnapshot> history;
   final List<Place> places;
   final Place? developmentPlace;
+  final PositionEvidence? position;
+  final String? locationError;
   final bool busy, demo;
   final bool paymentNeedsRefresh;
   final String? error, message;
@@ -23,6 +25,8 @@ class DriverViewState {
     this.history = const [],
     this.places = const [],
     this.developmentPlace,
+    this.position,
+    this.locationError,
     this.busy = false,
     this.demo = false,
     this.paymentNeedsRefresh = false,
@@ -36,6 +40,9 @@ class DriverViewState {
     Earnings? earnings,
     List<RideSnapshot>? history,
     Place? developmentPlace,
+    PositionEvidence? position,
+    String? locationError,
+    bool clearLocationError = false,
     bool? busy,
     bool? paymentNeedsRefresh,
     String? error,
@@ -50,6 +57,10 @@ class DriverViewState {
     history: history ?? this.history,
     places: places,
     developmentPlace: developmentPlace ?? this.developmentPlace,
+    position: position ?? this.position,
+    locationError: clearLocationError
+        ? null
+        : locationError ?? this.locationError,
     busy: busy ?? this.busy,
     paymentNeedsRefresh: paymentNeedsRefresh ?? this.paymentNeedsRefresh,
     demo: demo,
@@ -64,7 +75,7 @@ final driverControllerProvider =
     );
 
 class DriverController extends AsyncNotifier<DriverViewState> {
-  int _generation = 0, _revision = 0;
+  int _generation = 0, _revision = 0, _locationRevision = 0;
   int? _publishingGeneration, _refreshGeneration;
   bool _foreground = true;
   DateTime? _supplementalAt;
@@ -83,7 +94,7 @@ class DriverController extends AsyncNotifier<DriverViewState> {
         unawaited(refresh(forceSupplemental: false));
       }
     });
-    final timer = Timer.periodic(const Duration(seconds: 10), (_) {
+    final timer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (generation == _generation &&
           _foreground &&
           state.value?.availability?.online == true) {
@@ -146,7 +157,10 @@ class DriverController extends AsyncNotifier<DriverViewState> {
 
   void setForeground(bool active) {
     _foreground = active;
-    if (active) unawaited(refresh());
+    if (active) {
+      unawaited(refresh());
+      unawaited(publishLocation());
+    }
   }
 
   PositionEvidence? _position(DriverViewState s) {
@@ -173,6 +187,7 @@ class DriverController extends AsyncNotifier<DriverViewState> {
     final current = state.value;
     if (current == null || current.busy) return;
     final generation = _generation;
+    final locationRevision = _locationRevision;
     _revision++;
     state = AsyncData(current.copyWith(busy: true));
     try {
@@ -182,8 +197,18 @@ class DriverController extends AsyncNotifier<DriverViewState> {
             result.ride?.version != current.ride?.version) {
           _supplementalAt = null;
         }
+        final latest = state.value;
+        final newerPosition =
+            latest != null && locationRevision != _locationRevision;
         state = AsyncData(
           result.copyWith(
+            position: newerPosition ? latest.position : result.position,
+            locationError: newerPosition
+                ? latest.locationError
+                : result.locationError,
+            clearLocationError: newerPosition
+                ? latest.locationError == null
+                : result.locationError == null,
             busy: false,
             message: result.message,
             error: result.error,
@@ -192,7 +217,16 @@ class DriverController extends AsyncNotifier<DriverViewState> {
       }
     } catch (e) {
       if (ref.mounted && generation == _generation) {
-        state = AsyncData(current.copyWith(busy: false, error: e.toString()));
+        final latest = state.value;
+        state = AsyncData(
+          current.copyWith(
+            busy: false,
+            error: e.toString(),
+            position: latest?.position,
+            locationError: latest?.locationError,
+            clearLocationError: latest?.locationError == null,
+          ),
+        );
         if (e is Failure &&
             [
               'VERSION_CONFLICT',
@@ -354,11 +388,19 @@ class DriverController extends AsyncNotifier<DriverViewState> {
     final availability = await drivers.availability();
     if (online) {
       try {
-        await ref
+        final position = await ref
             .read(driverUseCasesProvider)
             .publishPosition(developmentPosition: _position(s));
+        return s.copyWith(
+          availability: availability,
+          position: position,
+          clearLocationError: true,
+        );
       } catch (e) {
-        return s.copyWith(availability: availability, error: e.toString());
+        return s.copyWith(
+          availability: availability,
+          locationError: e.toString(),
+        );
       }
     }
     return s.copyWith(availability: availability);
@@ -375,13 +417,32 @@ class DriverController extends AsyncNotifier<DriverViewState> {
     _publishingGeneration = generation;
     final useCases = ref.read(driverUseCasesProvider);
     try {
-      await useCases.publishPosition(developmentPosition: _position(current));
+      final position = await useCases.publishPosition(
+        developmentPosition: _position(current),
+      );
+      if (ref.mounted && generation == _generation && state.value != null) {
+        _locationRevision++;
+        final latest = state.value!;
+        state = AsyncData(
+          latest.copyWith(
+            position: position,
+            clearLocationError: true,
+            error: latest.error,
+            message: latest.message,
+          ),
+        );
+      }
     } catch (e) {
-      if (ref.mounted &&
-          generation == _generation &&
-          state.value != null &&
-          !state.value!.busy) {
-        state = AsyncData(state.value!.copyWith(error: e.toString()));
+      if (ref.mounted && generation == _generation && state.value != null) {
+        _locationRevision++;
+        final latest = state.value!;
+        state = AsyncData(
+          latest.copyWith(
+            locationError: e.toString(),
+            error: latest.error,
+            message: latest.message,
+          ),
+        );
       }
     } finally {
       if (_publishingGeneration == generation) _publishingGeneration = null;

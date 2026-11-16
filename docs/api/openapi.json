@@ -320,6 +320,53 @@
         }
       }
     },
+    "/api/v1/customers/me/nearby-drivers": {
+      "get": {
+        "tags": [
+          "GrapSolution.Api"
+        ],
+        "parameters": [
+          {
+            "name": "latitude",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+              "type": [
+                "number",
+                "string"
+              ],
+              "format": "double"
+            }
+          },
+          {
+            "name": "longitude",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+              "type": [
+                "number",
+                "string"
+              ],
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NearbyDrivers"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/service-zones/availability": {
       "get": {
         "tags": [
@@ -1851,6 +1898,35 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/rides/{id}/route": {
+      "get": {
+        "tags": [
+          "GrapSolution.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnonymousTypeOfstringAndintAndintAndstringAndstringAndListOfAnonymousTypeOfdoubleAnddoubleAndDateTimeAndDateTime"
+                }
+              }
+            }
           }
         }
       }
@@ -3638,6 +3714,67 @@
           }
         }
       },
+      "AnonymousTypeOfstringAndintAndintAndstringAndstringAndListOfAnonymousTypeOfdoubleAnddoubleAndDateTimeAndDateTime": {
+        "required": [
+          "rideId",
+          "distanceMeters",
+          "durationSeconds",
+          "routeSource",
+          "geometry",
+          "samples",
+          "serverTime"
+        ],
+        "type": "object",
+        "properties": {
+          "rideId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "distanceMeters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "durationSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "routeSource": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "geometry": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "samples": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AnonymousTypeOfdoubleAnddoubleAndDateTime"
+            }
+          },
+          "serverTime": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "AnonymousTypeOfstringAndintAndlongAndlong": {
         "required": [
           "date",
@@ -4977,6 +5114,83 @@
         "properties": {
           "body": {
             "type": "string"
+          }
+        }
+      },
+      "NearbyDriver": {
+        "required": [
+          "markerId",
+          "serviceTypeCode",
+          "latitude",
+          "longitude",
+          "locationAt"
+        ],
+        "type": "object",
+        "properties": {
+          "markerId": {
+            "type": "string"
+          },
+          "serviceTypeCode": {
+            "type": "string"
+          },
+          "latitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "longitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "locationAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "NearbyDrivers": {
+        "required": [
+          "inServiceZone",
+          "radiusMeters",
+          "serverTime",
+          "items",
+          "drivers"
+        ],
+        "type": "object",
+        "properties": {
+          "inServiceZone": {
+            "type": "boolean"
+          },
+          "radiusMeters": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "serverTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NearbyService"
+            }
+          },
+          "drivers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NearbyDriver"
+            }
           }
         }
       },

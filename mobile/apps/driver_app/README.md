@@ -2,6 +2,10 @@
 
 Project Flutter 3.47.6 / Riverpod 3 **độc lập**, core và giao diện nằm trong app. Không phụ thuộc project Flutter khác hoặc package nội bộ ở thư mục cha. Dio 5.11.1 được khai báo trực tiếp trong `pubspec.yaml`.
 
+Màn hình nhận chuyến dùng bản đồ với marker vị trí tài xế vừa được máy chủ xác nhận, thẻ thu nhập lũy kế và trạng thái GPS. Nút bật/tạm ngừng nhận chuyến nằm cố định phía trên thanh điều hướng. Khi có lời mời, hiển thị riêng tiền tài xế nhận, tiền thu khách và thời gian còn lại; khi đang chạy chuyến, thanh thao tác cố định chuyển theo bước đến đón → xác nhận PIN → hoàn tất, kèm mở chỉ đường. Có tùy chọn nghỉ sau chuyến hiện tại. Tab thu nhập chia số dư khả dụng, chờ đối soát, đang giữ và công nợ thành các thẻ dễ đọc.
+
+Ảnh QA từ widget thật: [nhận chuyến](../../../docs/qa/driver-home-refreshed.png), [lời mời](../../../docs/qa/driver-offer-refreshed.png), [đến đón khách](../../../docs/qa/driver-trip-refreshed.png), [thu nhập](../../../docs/qa/driver-earnings-refreshed.png). Các ảnh dùng dữ liệu QA; bản đồ nền không tải trong widget test.
+
 ```text
 lib/
   main.dart

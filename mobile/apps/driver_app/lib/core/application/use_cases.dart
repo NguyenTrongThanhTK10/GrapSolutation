@@ -46,9 +46,13 @@ class DriverUseCases {
   final DriverRepository drivers;
   final LocationProvider location;
   const DriverUseCases(this.rides, this.drivers, this.location);
-  Future<void> publishPosition({PositionEvidence? developmentPosition}) async {
-    await drivers.location(developmentPosition ?? await location.current());
+  Future<PositionEvidence> publishPosition({
+    PositionEvidence? developmentPosition,
+  }) async {
+    final position = developmentPosition ?? await location.current();
+    await drivers.location(position);
     await drivers.heartbeat();
+    return position;
   }
 
   Future<RideSnapshot> arrive(

@@ -14,6 +14,9 @@ import '../statistics/statistics_screen.dart';
 import 'driver_controller.dart';
 import 'widgets/driver_offer_bar.dart';
 import 'widgets/driver_map_home.dart';
+import 'widgets/driver_action_bar.dart';
+import 'widgets/driver_earnings_panel.dart';
+import 'widgets/driver_trip_heading.dart';
 import '../onboarding/onboarding_screen.dart';
 
 class DriverScreen extends ConsumerStatefulWidget {
@@ -43,6 +46,58 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     controller.setForeground(state == AppLifecycleState.resumed);
+  }
+
+  Future<void> _openOnboarding() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(builder: (_) => const OnboardingScreen()),
+    );
+    if (mounted) await controller.refresh();
+  }
+
+  Future<void> _navigate(RideSnapshot ride) async {
+    final point = ride.status == 'IN_PROGRESS' ? ride.dropoff : ride.pickup;
+    try {
+      final opened = await launchUrl(
+        Uri.https('www.google.com', '/maps/dir/', {
+          'api': '1',
+          'destination': '${point.latitude},${point.longitude}',
+        }),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không mở được ứng dụng bản đồ. Hãy thử lại.'),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không mở được ứng dụng bản đồ. Hãy thử lại.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _tripAction(RideSnapshot ride) async {
+    if (ride.status == 'ASSIGNED') {
+      await controller.arrive();
+    } else if (ride.status == 'DRIVER_ARRIVED') {
+      final pin = await askText(
+        context,
+        'Nhập PIN từ khách',
+        hint: '4 chữ số trên app khách hàng',
+        numeric: true,
+      );
+      if (pin != null && mounted) await controller.start(pin);
+    } else if (ride.status == 'IN_PROGRESS') {
+      await controller.complete();
+    }
   }
 
   @override
@@ -107,6 +162,24 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
               onAccept: controller.accept,
               onReject: controller.reject,
             ),
+          if (offer == null &&
+              current != null &&
+              tab == 0 &&
+              current.ride == null)
+            DriverAvailabilityBar(
+              view: current,
+              onToggle: () =>
+                  controller.toggle(current.availability?.online != true),
+              onOnboarding: _openOnboarding,
+              onRefresh: controller.refresh,
+            ),
+          if (tab == 0 && current?.ride?.active == true && current != null)
+            DriverTripActionBar(
+              ride: current.ride!,
+              busy: current.busy,
+              onNavigate: () => _navigate(current.ride!),
+              onAction: () => _tripAction(current.ride!),
+            ),
           NavigationBar(
             selectedIndex: tab,
             onDestinationSelected: (i) => setState(() => tab = i),
@@ -115,14 +188,17 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
             destinations: const [
               NavigationDestination(
                 icon: Icon(Icons.explore_outlined),
+                selectedIcon: Icon(Icons.explore_rounded),
                 label: 'Nhận chuyến',
               ),
               NavigationDestination(
                 icon: Icon(Icons.account_balance_wallet_outlined),
+                selectedIcon: Icon(Icons.account_balance_wallet_rounded),
                 label: 'Thu nhập',
               ),
               NavigationDestination(
                 icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person_rounded),
                 label: 'Tài khoản',
               ),
             ],
@@ -155,17 +231,8 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
                   Expanded(
                     child: DriverMapHome(
                       view: s,
-                      onToggle: controller.toggle,
+                      name: widget.user.name.split(' ').last,
                       onEarnings: () => setState(() => tab = 1),
-                      onOnboarding: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) => const OnboardingScreen(),
-                          ),
-                        );
-                        if (mounted) await controller.refresh();
-                      },
                       onChoosePlace: controller.choosePlace,
                       onPublish: controller.publishLocation,
                       onRefresh: controller.refresh,
@@ -235,74 +302,39 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
   }
 
   List<Widget> _home(DriverViewState s) {
-    final ride = s.ride, offer = s.offer;
+    final ride = s.ride;
+    final position = s.position;
     return [
-      Text(
-        'Chào ${widget.user.name.split(' ').last},',
-        style: const TextStyle(fontSize: 14, color: grapMuted),
-      ),
-      const SizedBox(height: 7),
-      Text(
-        offer != null && ride?.active != true
-            ? 'Có chuyến mới'
-            : 'Sẵn sàng nhận chuyến',
-        style: const TextStyle(
-          fontSize: 26,
-          fontWeight: FontWeight.w700,
-          color: grapInk,
-          height: 1.35,
-          letterSpacing: -.7,
+      if (ride != null) DriverTripHeading(ride: ride),
+      if (ride?.active == true && s.availability != null) ...[
+        const SizedBox(height: 12),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text(
+            'Nghỉ sau chuyến này',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          value: s.availability!.offlineAfterRide,
+          onChanged: s.busy ? null : (value) => controller.toggle(!value),
         ),
-      ),
-      const SizedBox(height: 22),
-      GrapCard(
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    s.availability?.online == true
-                        ? 'Bạn đang trực tuyến'
-                        : 'Bạn đang ngoại tuyến',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: grapInk,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    s.availability?.offlineAfterRide == true
-                        ? 'Sẽ nghỉ sau chuyến hiện tại'
-                        : 'Bật khi bạn sẵn sàng phục vụ',
-                    style: const TextStyle(fontSize: 14, color: grapMuted),
-                  ),
-                ],
-              ),
-            ),
-            Switch(
-              value: s.availability?.online ?? false,
-              onChanged: s.busy || s.availability?.reviewStatus != 'APPROVED'
-                  ? null
-                  : controller.toggle,
-            ),
-          ],
-        ),
-      ),
-      if (s.availability?.reviewStatus != 'APPROVED')
-        const GrapNotice(
-          'Hồ sơ chưa được duyệt hoặc cần bổ sung. Bạn chưa thể bật nhận chuyến.',
-        ),
-      const SizedBox(height: 16),
+      ],
+      const SizedBox(height: 20),
       GrapMap(
-        pickup: offer != null && ride?.active != true
-            ? offer.pickup
-            : ride?.pickup ?? s.developmentPlace,
-        dropoff: offer != null && ride?.active != true ? null : ride?.dropoff,
+        pickup: ride?.pickup,
+        dropoff: ride?.dropoff,
+        driver: position == null
+            ? s.developmentPlace
+            : Place(
+                id: 'driver',
+                address: 'Vị trí của bạn',
+                latitude: position.latitude,
+                longitude: position.longitude,
+              ),
         height: 260,
       ),
+      if (s.locationError != null) GrapNotice(s.locationError!, error: true),
+      if (s.availability?.offlineAfterRide == true)
+        const GrapNotice('Bạn sẽ ngừng nhận chuyến sau hành trình hiện tại.'),
       const SizedBox(height: 16),
       if (s.demo)
         GrapCard(
@@ -398,59 +430,6 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
                 ],
               ),
               const SizedBox(height: 20),
-              if (ride.active)
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final point = ride.status == 'IN_PROGRESS'
-                        ? ride.dropoff
-                        : ride.pickup;
-                    final uri = Uri.https('www.google.com', '/maps/dir/', {
-                      'api': '1',
-                      'destination': '${point.latitude},${point.longitude}',
-                    });
-                    final opened = await launchUrl(
-                      uri,
-                      mode: LaunchMode.externalApplication,
-                    );
-                    if (!opened && mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Không mở được ứng dụng bản đồ. Bạn vẫn xem được điểm đón/đến tại đây.',
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.navigation_outlined, size: 18),
-                  label: const Text('Mở chỉ đường'),
-                ),
-              const SizedBox(height: 10),
-              if (ride.status == 'ASSIGNED')
-                FilledButton(
-                  onPressed: s.busy ? null : controller.arrive,
-                  child: const Text('Tôi đã đến điểm đón'),
-                ),
-              if (ride.status == 'DRIVER_ARRIVED')
-                FilledButton(
-                  onPressed: s.busy
-                      ? null
-                      : () async {
-                          final pin = await askText(
-                            context,
-                            'Nhập PIN từ khách',
-                            hint: '4 chữ số trên app khách hàng',
-                            numeric: true,
-                          );
-                          if (pin != null) await controller.start(pin);
-                        },
-                  child: const Text('Xác nhận PIN & bắt đầu'),
-                ),
-              if (ride.status == 'IN_PROGRESS')
-                FilledButton(
-                  onPressed: s.busy ? null : controller.complete,
-                  child: const Text('Hoàn tất chuyến đi'),
-                ),
               if (['ASSIGNED', 'DRIVER_ARRIVED'].contains(ride.status))
                 TextButton(
                   onPressed: s.busy
@@ -594,18 +573,29 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
           ),
         ),
       ],
-      if (ride == null && offer == null)
-        GrapNotice(
-          s.availability?.online == true
-              ? 'Đang chờ chuyến phù hợp. Hãy giữ vị trí và kết nối mới.'
-              : 'Bật nhận chuyến khi bạn đã sẵn sàng.',
-        ),
     ];
   }
 
   List<Widget> _earnings(DriverViewState s) {
     final e = s.earnings;
     return [
+      const Text(
+        'Thu nhập của bạn',
+        style: TextStyle(
+          fontSize: 27,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -.7,
+          color: grapInk,
+        ),
+      ),
+      const SizedBox(height: 6),
+      const Text(
+        'Theo dõi thu nhập lũy kế và số dư từ các chuyến đã hoàn tất.',
+        style: TextStyle(fontSize: 14, color: grapMuted),
+      ),
+      const SizedBox(height: 20),
+      DriverEarningsHero(earnings: e),
+      const SizedBox(height: 16),
       OutlinedButton.icon(
         icon: const Icon(Icons.bar_chart_rounded),
         label: const Text('Báo cáo thu nhập theo kỳ'),
@@ -614,85 +604,37 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
           MaterialPageRoute<void>(builder: (_) => const RideStatisticsScreen()),
         ),
       ),
-      const SizedBox(height: 16),
-      const Text(
-        'Thu nhập lũy kế.',
-        style: TextStyle(
-          fontSize: 29,
-          fontWeight: FontWeight.w700,
-          color: grapInk,
+      if (e != null) ...[
+        const SizedBox(height: 22),
+        const Text(
+          'Số dư & đối soát',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),
-      ),
-      const SizedBox(height: 10),
-      const Text(
-        'Tổng từ mọi chuyến hoàn tất. Chọn báo cáo theo kỳ để lọc ngày và xem biểu đồ.',
-        style: TextStyle(fontSize: 14, color: grapMuted),
-      ),
-      const SizedBox(height: 22),
-      if (e != null)
+        const SizedBox(height: 12),
+        DriverWalletGrid(earnings: e),
+        const SizedBox(height: 12),
         GrapCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          padding: const EdgeInsets.all(16),
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            spacing: 12,
+            runSpacing: 8,
             children: [
               const Text(
-                'QUYỀN LỢI TỪ CHUYẾN HOÀN TẤT',
-                style: TextStyle(
-                  fontSize: 14,
-                  letterSpacing: 1,
-                  color: grapMuted,
-                ),
+                'Hoa hồng nền tảng',
+                style: TextStyle(color: grapMuted),
               ),
-              const SizedBox(height: 12),
               Text(
-                vnd(e.entitlement),
-                style: const TextStyle(
-                  fontSize: 34,
-                  fontWeight: FontWeight.w700,
-                  color: grapGreen,
-                ),
-              ),
-              const SizedBox(height: 9),
-              Text(
-                '${e.completedRides} chuyến hoàn tất',
-                style: const TextStyle(fontSize: 14, color: grapMuted),
-              ),
-              const Divider(),
-              for (final row in [
-                ('Khả dụng', e.available),
-                ('Chờ đối soát', e.pending),
-                ('Đang giữ', e.held),
-                ('Công nợ cần nộp', e.debt),
-                ('Hoa hồng nền tảng', e.commission),
-              ])
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 12,
-                    runSpacing: 8,
-                    children: [
-                      Text(
-                        row.$1,
-                        style: const TextStyle(fontSize: 14, color: grapMuted),
-                      ),
-                      Text(
-                        vnd(row.$2),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: grapInk,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              const GrapNotice(
-                'Tiền mặt đã cầm không được cộng thêm lần nữa vào số có thể rút. Rút tiền tự phục vụ thuộc giai đoạn P1.',
+                vnd(e.commission),
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ],
           ),
         ),
+        const GrapNotice(
+          'Tiền mặt đã cầm không được cộng thêm lần nữa vào số có thể rút. Rút tiền tự phục vụ thuộc giai đoạn P1.',
+        ),
+      ],
       const SizedBox(height: 22),
       const Text(
         'Lịch sử chuyến',

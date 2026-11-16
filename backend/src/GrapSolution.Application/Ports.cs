@@ -17,6 +17,8 @@ public interface IMapProvider
 }
 public record NearbyService(string Code, int AvailableCount);
 public record NearbyServices(bool InServiceZone, int RadiusMeters, DateTime ServerTime, IReadOnlyList<NearbyService> Items);
+public record NearbyDriver(string MarkerId, string ServiceTypeCode, double Latitude, double Longitude, DateTime LocationAt);
+public record NearbyDrivers(bool InServiceZone, int RadiusMeters, DateTime ServerTime, IReadOnlyList<NearbyService> Items, IReadOnlyList<NearbyDriver> Drivers);
 public interface IOtpProvider { Task Send(string phone, string code, CancellationToken ct); }
 public interface ISecrets { string Hash(string value); string Hmac(string value); string Protect(string value); string Unprotect(string value); }
 public record QuoteRequest(GeoPoint Pickup, GeoPoint Dropoff, string ServiceTypeCode, string PaymentMethodType = "CASH");

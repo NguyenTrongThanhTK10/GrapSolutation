@@ -12,6 +12,7 @@ class GrapMap extends StatefulWidget {
   final Place? pickup, dropoff, driver;
   final double height, borderRadius;
   final bool showControls, showAttribution;
+  final int cameraRevision;
   final ValueChanged<Place>? onPick;
   const GrapMap({
     super.key,
@@ -22,6 +23,7 @@ class GrapMap extends StatefulWidget {
     this.borderRadius = 16,
     this.showControls = true,
     this.showAttribution = true,
+    this.cameraRevision = 0,
     this.onPick,
   });
   @override
@@ -43,7 +45,9 @@ class _GrapMapState extends State<GrapMap> {
   void _watchTiles() {
     tileTimer?.cancel();
     tileTimer = Timer(const Duration(seconds: 8), () {
-      if (mounted && !tilesLoaded) { setState(() => tileTimeout = true); }
+      if (mounted && !tilesLoaded) {
+        setState(() => tileTimeout = true);
+      }
     });
   }
 
@@ -57,12 +61,16 @@ class _GrapMapState extends State<GrapMap> {
   }
 
   void _tileLoaded() {
-    if (tilesLoaded) { return; }
+    if (tilesLoaded) {
+      return;
+    }
     tilesLoaded = true;
     tileTimer?.cancel();
     if (tileTimeout) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) { setState(() => tileTimeout = false); }
+        if (mounted) {
+          setState(() => tileTimeout = false);
+        }
       });
     }
   }
@@ -107,7 +115,7 @@ class _GrapMapState extends State<GrapMap> {
               pair.$1?.latitude != pair.$2?.latitude ||
               pair.$1?.longitude != pair.$2?.longitude,
         );
-    if (changed) {
+    if (changed || oldWidget.cameraRevision != widget.cameraRevision) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           fitRoute();
@@ -132,6 +140,7 @@ class _GrapMapState extends State<GrapMap> {
     final onPick = widget.onPick;
     final center =
         pickup ??
+        driver ??
         const Place(
           id: 'hcm',
           address: 'HCM',
@@ -169,7 +178,9 @@ class _GrapMapState extends State<GrapMap> {
             TileLayer(
               key: ValueKey(tileAttempt),
               tileBuilder: (context, tileWidget, tile) {
-                if (!tile.loadError && tile.imageInfo != null) { _tileLoaded(); }
+                if (!tile.loadError && tile.imageInfo != null) {
+                  _tileLoaded();
+                }
                 return tileWidget;
               },
               urlTemplate: const String.fromEnvironment(
@@ -197,7 +208,7 @@ class _GrapMapState extends State<GrapMap> {
                 for (final entry in [
                   (pickup, Icons.circle, grapGreen),
                   (dropoff, Icons.location_on, const Color(0xffc09267)),
-                  (driver, Icons.local_taxi, grapGreen),
+                  (driver, Icons.navigation_rounded, const Color(0xff2563eb)),
                 ])
                   if (entry.$1 != null)
                     Marker(

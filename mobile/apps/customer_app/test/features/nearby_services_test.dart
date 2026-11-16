@@ -8,6 +8,8 @@ import 'package:grap_customer/features/booking/widgets/nearby_services.dart';
 import 'booking_ui_test.dart' show SignedIn, pickup;
 
 class Discovery implements BookingDiscoveryRepository {
+  @override
+  Stream<void> updates(Place pickup) => const Stream.empty();
   int calls = 0;
   bool expired = false, fail = false;
   @override
@@ -34,34 +36,34 @@ Widget app(Discovery repository) => ProviderScope(
   ),
 );
 void main() {
-  testWidgets('expired availability hides old counts and refresh is explicit', (
-    tester,
-  ) async {
-    final repo = Discovery()..expired = true;
-    await tester.pumpWidget(app(repo));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Thông tin xe đã cũ'), findsOneWidget);
-    expect(repo.calls, 1);
-    repo.expired = false;
-    await tester.tap(find.byTooltip('Cập nhật xe gần đây'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('2 xe'), findsOneWidget);
-    expect(repo.calls, 2);
-    await tester.pumpWidget(const SizedBox());
-  });
   testWidgets(
-    'unavailable discovery is not reported as zero cars and does not retry automatically',
+    'expired availability hides old counts and permits manual refresh',
     (tester) async {
-      final repo = Discovery()..fail = true;
+      final repo = Discovery()..expired = true;
       await tester.pumpWidget(app(repo));
       await tester.pumpAndSettle();
-      expect(
-        find.textContaining('Chưa kiểm tra được xe gần đây'),
-        findsOneWidget,
-      );
-      expect(find.textContaining('0 xe'), findsNothing);
+      expect(find.textContaining('Thông tin xe đã cũ'), findsOneWidget);
       expect(repo.calls, 1);
+      repo.expired = false;
+      await tester.tap(find.byTooltip('Cập nhật xe gần đây'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('2 xe'), findsOneWidget);
+      expect(repo.calls, 2);
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('unavailable discovery is not reported as zero cars', (
+    tester,
+  ) async {
+    final repo = Discovery()..fail = true;
+    await tester.pumpWidget(app(repo));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Chưa kiểm tra được xe gần đây'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('0 xe'), findsNothing);
+    expect(repo.calls, 1);
+    await tester.pumpWidget(const SizedBox());
+  });
 }

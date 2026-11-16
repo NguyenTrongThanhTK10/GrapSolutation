@@ -60,6 +60,8 @@ public static partial class Endpoints
         });
         auth.MapGet("/customers/me/nearby-services", (double latitude, double longitude, HttpContext ctx, RideService service) =>
             service.Nearby(ctx.Actor(), new(latitude, longitude, "Điểm đón")));
+        auth.MapGet("/customers/me/nearby-drivers", (double latitude, double longitude, HttpContext ctx, RideService service) =>
+            service.NearbyLocations(ctx.Actor(), new(latitude, longitude, "Điểm đón")));
         auth.MapGet("/service-zones/availability", (GrapDbContext db) => new { items = db.Set<ServiceZone>().Where(z => z.Active).ToList() });
         auth.MapPost("/quotes", async (QuoteRequest body, HttpContext ctx, RideService service, GrapDbContext db, CancellationToken ct) => { var quote = await service.CreateQuote(ctx.Actor(), body, ct); await db.SaveChangesAsync(ct); return Results.Created("/api/v1/quotes/" + quote.Id, new { quoteId = quote.Id, quote.Fare, estimatedDistanceMeters = quote.DistanceMeters, estimatedDurationSeconds = quote.DurationSeconds, quote.ExpiresAt, quote.FarePolicyVersion, quote.RouteSource, serverTime = DateTime.UtcNow }); });
         auth.MapPost("/rides", (RideRequest body, HttpContext ctx, AtomicExecutor executor, ISecrets secrets, RideService service, GrapDbContext db) => Write(ctx, executor, secrets, body, async () => { var ride = service.CreateRide(ctx.Actor(), body); await db.SaveChangesAsync(); return service.Snapshot(ctx.Actor(), ride); }, true, 201));
@@ -95,13 +97,13 @@ public static partial class Endpoints
             var busy = db.Set<Assignment>().Any(a => a.DriverId == d.Id && a.EndedAt == null); if (!body.Online && busy) d.OfflineAfterRide = true; else { d.Online = body.Online; d.OfflineAfterRide = false; }
             if (body.Online) { if (d.ActiveSessionId != actor.SessionId) { d.LocationSequence = 0; d.LocationAt = null; d.HeartbeatAt = null; } d.ActiveSessionId = actor.SessionId; }
             if (!body.Online && !busy) foreach (var o in db.Set<Offer>().Where(o => o.DriverId == d.Id && o.Status == "OPEN")) { o.Status = "REVOKED"; o.Version++; }
-            d.Version++; return Task.FromResult<object?>(new { d.Online, d.OfflineAfterRide, d.Version });
+            d.Version++; s.NotifyNearbyDrivers(d.ZoneId); return Task.FromResult<object?>(new { d.Online, d.OfflineAfterRide, d.Version });
         }));
         auth.MapPost("/drivers/me/heartbeat", (HttpContext ctx, AtomicExecutor executor, ISecrets secrets, RideService s) => Write(ctx, executor, secrets, new { }, () => { var d = s.DriverFor(ctx.Actor()); if (d.ActiveSessionId != ctx.Actor().SessionId) throw new RuleException("SESSION_EXPIRED", "Thiết bị không còn hoạt động.", 403); d.HeartbeatAt = DateTime.UtcNow; return Task.FromResult<object?>(new { serverTime = DateTime.UtcNow }); }));
         auth.MapPost("/drivers/me/location-batches", (LocationBatch body, HttpContext ctx, AtomicExecutor executor, ISecrets secrets, RideService s, GrapDbContext db) => Write(ctx, executor, secrets, body, () =>
         {
             var d = s.DriverFor(ctx.Actor()); if (d.ActiveSessionId != ctx.Actor().SessionId || body.Samples.Length > 100 || body.Samples.Length == 0) throw new RuleException("VALIDATION_ERROR", "Thiết bị hoặc batch không hợp lệ.", 400);
-            var accepted = 0; var inBatch = new HashSet<string>();
+            var accepted = 0; var inBatch = new HashSet<string>(); var previousSequence = d.LocationSequence;
             foreach (var sample in body.Samples.OrderBy(x => x.Sequence))
             {
                 var sampleId = sample.SampleId ?? sample.Sequence.ToString();
@@ -111,6 +113,7 @@ public static partial class Endpoints
                 d.Latitude = sample.Latitude; d.Longitude = sample.Longitude; d.Accuracy = sample.AccuracyMeters; d.LocationSequence = sample.Sequence; d.LocationAt = sample.RecordedAt;
             }
             var activeRide = db.Set<Ride>().SingleOrDefault(r => r.DriverId == d.Id && RideStates.Active.Contains(r.Status));
+            if (d.LocationSequence != previousSequence) s.NotifyNearbyDrivers(d.ZoneId);
             if (accepted > 0 && activeRide != null) db.Add(new OutboxMessage { AggregateId = activeRide.Id, AggregateVersion = activeRide.Version, EventType = "ride.driver.location.updated", Payload = System.Text.Json.JsonSerializer.Serialize(new { rideId = activeRide.Id, locationSequence = d.LocationSequence, d.LocationAt }) });
             return Task.FromResult<object?>(new { accepted, rejected = body.Samples.Length - accepted, latestSequence = d.LocationSequence, serverTime = DateTime.UtcNow });
         }));

@@ -20,11 +20,16 @@ const updated = Place(
   latitude: 21.03,
   longitude: 105.85,
 );
-Widget map(Place pickup, {Place? dropoff}) => MaterialApp(
-  home: Scaffold(
-    body: GrapMap(pickup: pickup, dropoff: dropoff),
-  ),
-);
+Widget map(Place pickup, {Place? dropoff, int cameraRevision = 0}) =>
+    MaterialApp(
+      home: Scaffold(
+        body: GrapMap(
+          pickup: pickup,
+          dropoff: dropoff,
+          cameraRevision: cameraRevision,
+        ),
+      ),
+    );
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(
@@ -88,6 +93,28 @@ void main() {
         isTrue,
       );
       await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+  testWidgets(
+    'an explicit recenter request restores the camera even if GPS has not moved',
+    (tester) async {
+      await tester.pumpWidget(map(original));
+      await tester.pumpAndSettle();
+      final controller = tester
+          .widget<FlutterMap>(find.byType(FlutterMap))
+          .mapController!;
+      controller.move(const LatLng(0, 0), 15);
+      await tester.pumpWidget(map(original, cameraRevision: 1));
+      await tester.pumpAndSettle();
+      expect(
+        controller.camera.center.latitude,
+        closeTo(original.latitude, .0001),
+      );
+      expect(
+        controller.camera.center.longitude,
+        closeTo(original.longitude, .0001),
+      );
+      await tester.pumpWidget(const SizedBox());
     },
   );
   testWidgets(

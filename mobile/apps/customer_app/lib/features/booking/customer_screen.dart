@@ -447,7 +447,7 @@ class _CustomerScreenState extends ConsumerState<CustomerScreen>
             ],
             if (s.pickup != null) ...[
               const SizedBox(height: 14),
-              NearbyServicesPanel(pickup: s.pickup!),
+              NearbyServicesPanel(pickup: s.pickup!, service: s.service),
             ],
             const SizedBox(height: 20),
             const Text(

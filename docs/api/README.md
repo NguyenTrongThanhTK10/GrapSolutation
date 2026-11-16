@@ -57,6 +57,8 @@ Không map lỗi nghiệp vụ thành HTTP 200. Lỗi provider 503 không thay t
 
 Hub `/hubs/rides`. Server gán group theo session đã xác thực; không có API join group tùy ý. Event envelope có eventId, eventType, schemaVersion, aggregateId, aggregateVersion, occurredAt, data. Ride state và GPS có sequence riêng; client dùng snapshot làm nguồn quyết định. Socket mất kết nối có polling foreground dự phòng.
 
+Customer gọi `SubscribeNearby(latitude, longitude)` để nhận thông báo cho vùng chứa điểm đón. Server kiểm tra vai trò, session và tọa độ, thay subscription cũ trên cùng connection; ngoài vùng phục vụ sẽ bỏ subscription. Khi reconnect, client phải gọi lại. Event riêng `nearby.drivers.changed` chỉ mang `{serverTime}`, không mang tọa độ hoặc dữ liệu cá nhân; client tải snapshot qua REST có xác thực. Outbox phát thông báo sau khi thay đổi GPS, online/offline, lời mời hoặc trạng thái chuyến; polling còn xử lý GPS/heartbeat hết hạn và thay đổi phiên.
+
 ## Lịch sử và đánh giá
 
 `GET /rides?status=COMPLETED&from=<UTC>&to=<UTC>&pageSize=20&cursor=<encoded>` trả `items`, `nextCursor`, `hasMore`, `serverTime`. `from` bao gồm, `to` loại trừ; ngày bắt đầu phải nhỏ hơn ngày kết thúc. Không truyền status để lấy tất cả; `ACTIVE` gộp trạng thái đang diễn ra. pageSize giới hạn 1–100. Cursor có chữ ký và gắn actor/role/bộ lọc; URL-encode giá trị nguyên vẹn, không dùng lại sau khi đổi filter. Cursor giả hoặc sai scope trả `INVALID_CURSOR` 400. Sắp giảm dần CreatedAt rồi ID, không dùng offset.
@@ -108,7 +110,8 @@ Response có `from`, `to`, `timezone`, `currency`, `role`, `generatedAt`, `granu
 - HTTP map adapter mới nhận `GET {Maps__BaseUrl}/autocomplete?q=...`, trả `{items:[{placeId,latitude,longitude,address}]}`. ID không rỗng/tối đa 200, địa chỉ không rỗng/tối đa 500, tọa độ hữu hạn/đúng miền. Timeout theo HTTP client maps hiện có. `POST /route` giữ hợp đồng cũ.
 - `GET /customers/me/nearby-services?latitude=10.7721&longitude=106.6983`: Customer-only; tọa độ phải hợp lệ. Trả `{inServiceZone,radiusMeters:3000,serverTime,items:[{code,availableCount}]}` với BIKE/CAR_4/CAR_7. Ngoài vùng đang active trả `inServiceZone:false` và 0 cho các loại xe.
 - Bộ lọc xe dùng chung với dispatch; không tính xe có open offer còn hạn, assignment chưa đóng, session/user không hoạt động, hồ sơ/giấy tờ không hợp lệ, GPS/heartbeat quá 30 giây hoặc accuracy quá 100 m. Chỉ trả số lượng, không trả ID/biển số/số điện thoại/tọa độ tài xế.
-- Số lượng là snapshot theo vùng và bán kính địa lý, không giữ chỗ/không phải ETA. App ẩn số liệu sau 20 giây và cho cập nhật bằng tay. Lỗi tải có trạng thái riêng, không tự coi là 0 xe.
+- `GET /customers/me/nearby-drivers?latitude=10.7721&longitude=106.6983`: cùng quyền/bộ lọc và các trường của nearby-services, thêm `drivers:[{markerId,serviceTypeCode,latitude,longitude,locationAt}]`. Tối đa 100 marker gần nhất, tọa độ làm tròn 4 chữ số thập phân; `markerId` là HMAC riêng cho mỗi khách/ngày, không phải driver ID. Không trả danh tính/biển số/điện thoại. Endpoint nearby-services vẫn chỉ trả số lượng.
+- Số lượng là snapshot theo vùng và bán kính địa lý, không giữ chỗ/không phải ETA. App tự cập nhật qua SignalR, REST dự phòng mỗi 5 giây và nút cập nhật thủ công; gộp sự kiện trong 300 ms, mỗi subscription chỉ có một REST request chạy. Snapshot hết hạn sau tối đa 15 giây, từng marker hết hạn khi GPS vượt 30 giây tính theo serverTime và trừ thời gian request. Lỗi tải có trạng thái riêng, không tự coi là 0 xe. Subscription dừng khi app chuyển nền/rời màn hình; đổi điểm đón/phiên sẽ bỏ response cũ.
 
 ## Bản đồ hành trình chuyến xe
 

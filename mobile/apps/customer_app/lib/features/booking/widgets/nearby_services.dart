@@ -5,11 +5,13 @@ import 'package:grap_customer/core/widgets/app_widgets.dart';
 
 class NearbyServicesPanel extends ConsumerWidget {
   final Place pickup;
-  const NearbyServicesPanel({super.key, required this.pickup});
+  final String? service;
+  const NearbyServicesPanel({super.key, required this.pickup, this.service});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final provider = nearbyServicesProvider(pickup);
     final state = ref.watch(provider);
+    final data = state.hasError ? null : state.asData?.value;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -30,13 +32,33 @@ class NearbyServicesPanel extends ConsumerWidget {
             ),
           ],
         ),
+        if (service != null) ...[
+          ExpiryBuilder(
+            deadline:
+                data?.freshUntil ?? DateTime.fromMillisecondsSinceEpoch(0),
+            builder: (seconds) => GrapMap(
+              pickup: pickup,
+              height: 260,
+              nearbyDrivers: seconds == 0 || data?.inServiceZone != true
+                  ? const []
+                  : data!.drivers
+                        .where(
+                          (driver) =>
+                              driver.service == service &&
+                              driver.freshUntil.isAfter(DateTime.now()),
+                        )
+                        .toList(),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
         state.when(
           skipLoadingOnRefresh: false,
           loading: () => const LinearProgressIndicator(
             semanticsLabel: 'Đang kiểm tra xe gần điểm đón',
           ),
           error: (_, _) => const Text(
-            'Chưa kiểm tra được xe gần đây. Bạn vẫn có thể xem giá và gửi yêu cầu đặt xe.',
+            'Chưa kiểm tra được xe gần đây. Đang kết nối lại. Bạn vẫn có thể xem giá và đặt xe.',
             style: TextStyle(fontSize: 13, color: grapMuted),
           ),
           data: (data) => ExpiryBuilder(
@@ -44,7 +66,7 @@ class NearbyServicesPanel extends ConsumerWidget {
             builder: (seconds) {
               if (seconds == 0) {
                 return const Text(
-                  'Thông tin xe đã cũ. Nhấn cập nhật để kiểm tra lại.',
+                  'Thông tin xe đã cũ. Đang cập nhật lại vị trí tài xế.',
                   style: TextStyle(fontSize: 13, color: grapMuted),
                 );
               }
@@ -58,7 +80,7 @@ class NearbyServicesPanel extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${data.counts.values.fold<int>(0, (sum, value) => sum + value)} xe vừa kiểm tra trong ${(data.radiusMeters / 1000).toStringAsFixed(0)} km',
+                    '${service == null ? data.counts.values.fold<int>(0, (sum, value) => sum + value) : data.counts[service] ?? 0} xe${service == null ? '' : ' ${serviceLabel(service!)}'} trong ${(data.radiusMeters / 1000).toStringAsFixed(0)} km',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -67,7 +89,7 @@ class NearbyServicesPanel extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Xem số xe theo loại ở bên dưới. Số lượng có thể thay đổi; tài xế xác nhận sau khi bạn đặt.',
+                    'Tự cập nhật vị trí xe gần đúng. Chọn loại xe bên dưới để xem trên bản đồ; tài xế xác nhận sau khi bạn đặt.',
                     style: const TextStyle(
                       fontSize: 12,
                       height: 1.5,

@@ -139,6 +139,8 @@ docs/                             # Phân tích, mapping yêu cầu, kiến trú
 
 Hai app không dùng package nội bộ qua `path:` và không phụ thuộc mã nguồn của nhau. Mỗi app khai báo trực tiếp Dio trong `pubspec.yaml`. Cấu hình HTTP nằm tại `lib/core/network/dio_config.dart`, provider tạo Dio và ApiClient tại `api_providers.dart`; `api_client.dart` xử lý bearer, refresh một lần khi nhiều request cùng hết phiên, lỗi API và idempotency. `lib/core/providers/app_providers.dart` nối repository vào Riverpod, màn hình gọi controller/repository qua provider.
 
+Màn hình đặt xe hiển thị các xe đang nhận chuyến trong bán kính 3 km quanh điểm đón, lọc theo Xe máy/Ô tô 4 chỗ/Ô tô 7 chỗ. Vị trí gần đúng được cập nhật qua SignalR và REST dự phòng mỗi 5 giây; tài xế gửi GPS/heartbeat mỗi 5 giây khi app đang mở. Xe bận, đang có lời mời, offline hoặc GPS/heartbeat quá 30 giây không được đưa vào bản đồ. App ẩn marker hết hạn, ngừng tải khi chuyển nền/rời màn hình và tải lại khi quay về. Vị trí trước khi nhận chuyến không kèm danh tính, biển số hoặc số điện thoại; đặt xe vẫn qua cơ chế điều phối hiện có.
+
 ## PostgreSQL và triển khai
 
 Có migration PostgreSQL, unique partial index và advisory transaction lock. Local SQLite tạo schema riêng để chạy không cần Docker. Xem [kiến trúc](docs/architecture/ARCHITECTURE.md), [API](docs/api/README.md) và [runbook](docs/runbooks/LOCAL_AND_DEPLOYMENT.md).

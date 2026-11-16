@@ -73,6 +73,8 @@ class BookingController extends CustomerController {
 
 class NoNearby implements BookingDiscoveryRepository {
   @override
+  Stream<void> updates(Place pickup) => const Stream.empty();
+  @override
   Future<NearbyAvailability> nearby(Place pickup) async => NearbyAvailability(
     inServiceZone: true,
     radiusMeters: 3000,

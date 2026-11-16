@@ -44,7 +44,12 @@ void main() {
     'location is confirmed before heartbeat eligibility is refreshed',
     () async {
       final drivers = RecordingDrivers(), location = DeviceLocation();
-      await DriverUseCases(FakeRides(), drivers, location).publishPosition();
+      final published = await DriverUseCases(
+        FakeRides(),
+        drivers,
+        location,
+      ).publishPosition();
+      expect(published, same(drivers.received));
       expect(drivers.operations, ['location', 'heartbeat']);
       expect(location.count, 1);
       expect(drivers.received!.accuracy, 12);

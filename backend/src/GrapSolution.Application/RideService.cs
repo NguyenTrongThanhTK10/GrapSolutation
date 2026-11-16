@@ -62,25 +62,47 @@ public sealed class RideService(IGrapStore db, IMapProvider maps, ISecrets secre
         db.Query<User>().Any(user => user.Id == driver.UserId && user.Status == "ACTIVE") &&
         db.Query<Session>().Any(session => session.Id == driver.ActiveSessionId && session.RevokedAt == null && session.ExpiresAt > now) &&
         driver.DocumentsExpireAt > now && driver.HeartbeatAt > now.AddSeconds(-30) && driver.LocationAt > now.AddSeconds(-30) &&
-        driver.Accuracy <= 100 && !db.Query<Assignment>().Any(a => a.DriverId == driver.Id && a.EndedAt == null));
+        driver.LocationAt <= now.AddSeconds(15) && driver.Accuracy > 0 && driver.Accuracy <= 100 &&
+        !db.Query<Assignment>().Any(a => a.DriverId == driver.Id && a.EndedAt == null));
     private bool Eligible(Driver driver, DateTime now) => EligibleDrivers(now).Any(d => d.Id == driver.Id);
     public NearbyServices Nearby(Actor actor, GeoPoint pickup)
+    {
+        var nearby = DiscoverNearby(actor, pickup, includeLocations: false);
+        return new(nearby.InServiceZone, nearby.RadiusMeters, nearby.ServerTime, nearby.Items);
+    }
+    public NearbyDrivers NearbyLocations(Actor actor, GeoPoint pickup) => DiscoverNearby(actor, pickup, includeLocations: true);
+    public void NotifyNearbyDrivers(string zoneId) => db.Add(new OutboxMessage
+    {
+        EventType = "nearby.drivers.changed", AggregateId = zoneId, Payload = "{}"
+    });
+    private NearbyDrivers DiscoverNearby(Actor actor, GeoPoint pickup, bool includeLocations)
     {
         actor.Require(Roles.Customer); pickup.Validate();
         var now = DateTime.UtcNow;
         var zone = db.Query<ServiceZone>().ToList().FirstOrDefault(z => z.Active && Contains(z.PolygonJson, pickup));
         var counts = new Dictionary<string, int>();
+        IReadOnlyList<NearbyDriver> markers = [];
         if (zone != null)
         {
-            // Filter eligibility in SQL; project only fields needed for aggregate distance counts.
-            counts = EligibleDrivers(now).Where(d => d.ZoneId == zone.Id &&
+            var nearby = EligibleDrivers(now).Where(d => d.ZoneId == zone.Id &&
+                    (d.ServiceTypeCode == "BIKE" || d.ServiceTypeCode == "CAR_4" || d.ServiceTypeCode == "CAR_7") &&
                     !db.Query<Offer>().Any(o => o.DriverId == d.Id && o.Status == "OPEN" && o.ExpiresAt > now))
-                .Select(d => new { d.ServiceTypeCode, d.Latitude, d.Longitude }).ToList()
-                .Where(d => pickup.DistanceTo(new(d.Latitude, d.Longitude, "")) <= 3000)
-                .GroupBy(d => d.ServiceTypeCode).ToDictionary(g => g.Key, g => g.Count());
+                .Select(d => new { d.Id, d.ServiceTypeCode, d.Latitude, d.Longitude, d.LocationAt }).ToList()
+                .Where(d => double.IsFinite(d.Latitude) && double.IsFinite(d.Longitude) &&
+                    d.Latitude is >= -90 and <= 90 && d.Longitude is >= -180 and <= 180)
+                .Select(d => new { Driver = d, Distance = pickup.DistanceTo(new(d.Latitude, d.Longitude, "")) })
+                .Where(d => d.Distance <= 3000).OrderBy(d => d.Distance).ThenBy(d => d.Driver.Id).ToList();
+            counts = nearby.GroupBy(d => d.Driver.ServiceTypeCode).ToDictionary(g => g.Key, g => g.Count());
+            // Stable for this customer/day; no driver identity is exposed before assignment.
+            if (includeLocations) markers = nearby.Take(100).Select(item =>
+            {
+                var d = item.Driver;
+                return new NearbyDriver(secrets.Hmac($"nearby:{actor.Id}:{now:yyyy-MM-dd}:{d.Id}"),
+                    d.ServiceTypeCode, Math.Round(d.Latitude, 4), Math.Round(d.Longitude, 4), d.LocationAt!.Value);
+            }).ToList();
         }
         return new(zone != null, 3000, now, new[] { "BIKE", "CAR_4", "CAR_7" }
-            .Select(code => new NearbyService(code, counts.GetValueOrDefault(code))).ToList());
+            .Select(code => new NearbyService(code, counts.GetValueOrDefault(code))).ToList(), markers);
     }
     public async Task Dispatch(CancellationToken ct = default)
     {

@@ -104,11 +104,14 @@ class RidesFake implements RideRepository {
 }
 
 class DriversFake implements DriverRepository {
-  bool failEarnings = false, online = false;
+  bool failEarnings = false, online = false, failLocation = false;
   int locationCalls = 0, heartbeatCalls = 0;
   @override
   Future<void> location(PositionEvidence p) async {
     locationCalls++;
+    if (failLocation) {
+      throw const Failure('GPS_NOT_CONFIRMED', 'GPS chưa được xác nhận');
+    }
   }
 
   @override
@@ -242,10 +245,43 @@ void main() {
       await controller.publishLocation();
       expect(drivers.locationCalls, 1);
       expect(drivers.heartbeatCalls, 1);
+      final published = c.read(driverControllerProvider).value!.position;
+      expect(published, isNotNull);
       rides.supportWait!.complete();
       await sending;
+      expect(c.read(driverControllerProvider).value!.position, same(published));
     },
   );
+
+  test('a GPS failure remains visible after a concurrent command and a successful retry clears it', () async {
+    final rides = RidesFake()..supportWait = Completer<void>();
+    final drivers = DriversFake()
+      ..online = true
+      ..failLocation = true;
+    final c = await setup(rides, drivers: drivers);
+    addTearDown(() async {
+      c.dispose();
+      await rides.updatesController.close();
+    });
+    final controller = c.read(driverControllerProvider.notifier);
+    final command = controller.support('Hỗ trợ');
+    await controller.publishLocation();
+    expect(
+      c.read(driverControllerProvider).value!.locationError,
+      contains('GPS'),
+    );
+    rides.supportWait!.complete();
+    await command;
+    expect(
+      c.read(driverControllerProvider).value!.locationError,
+      contains('GPS'),
+    );
+    expect(drivers.heartbeatCalls, 0);
+    drivers.failLocation = false;
+    await controller.publishLocation();
+    expect(c.read(driverControllerProvider).value!.locationError, isNull);
+    expect(c.read(driverControllerProvider).value!.position, isNotNull);
+  });
 
   test(
     'optional earnings and history outages do not hide the current assignment',

@@ -2,6 +2,22 @@
 
 Kiểm tra trên macOS/Apple Silicon; giao diện mobile ngày **03/11/2026**, web quản trị và thống kê mobile cập nhật ngày **04/11/2026**. Toolchain thực tế: .NET SDK 10.0.401, Node 20.19.0, Flutter 3.47.6, Dart 3.13.5.
 
+## Giao diện app tài xế — 16/11/2026
+
+- Toàn bộ `flutter test` app tài xế: **78/78 đạt**, gồm 9 ca mới cho nút nhận chuyến và đến đón/hoàn tất cố định khi cuộn ở 320×640, 640×320, chữ 160%; hiển thị vị trí đã gửi và lỗi GPS; số dư trên màn hình hẹp; kiểm tra server đã nhận đúng mẫu GPS; giữ vị trí/lỗi GPS khi lệnh hỗ trợ hoàn tất đồng thời; căn lại bản đồ khi tọa độ không đổi.
+- `flutter analyze` toàn bộ tệp thay đổi: **không có issue**. Không thêm dependency hoặc quyền native.
+- Đã dựng và xem ảnh từ widget Flutter với Roboto/Material Icons ở 390×844: [nhận chuyến](qa/driver-home-refreshed.png), [lời mời](qa/driver-offer-refreshed.png), [đến đón khách](qa/driver-trip-refreshed.png), [thu nhập](qa/driver-earnings-refreshed.png). Các ảnh dùng dữ liệu QA; tile mạng bị chặn trong widget test. Nút chính và điều hướng nằm trong viewport.
+- Chưa build lại APK/IPA hoặc kiểm thử trên thiết bị thật sau thay đổi giao diện. Giới hạn tracking foreground vẫn giữ nguyên.
+
+## Tài xế gần điểm đón realtime — 16/11/2026
+
+- Toàn bộ backend: `dotnet test GrapSolution.sln --no-restore -m:1 -nr:false` **45/45 đạt**. Bộ `BookingDiscoveryTests` **5/5 đạt**, gồm WebSocket SignalR thật qua TestServer: khách subscribe theo điểm đón, nhận invalidation, vai trò tài xế bị chặn; REST trả marker ẩn danh, tọa độ cập nhật, xe offline/GPS cũ biến mất. Endpoint đếm xe giữ hợp đồng không trả tọa độ.
+- Toàn bộ app khách: `flutter test` **88/88 đạt**; test repository bổ sung chạy riêng **1/1 đạt**, kiểm tra thời hạn GPS theo serverTime khi đồng hồ thiết bị lệch. Các widget test mới kiểm tra marker theo loại xe, di chuyển giữ camera, GPS/snapshot cũ bị ẩn, REST phục hồi sau lỗi, gộp sự kiện, đổi điểm đón khi request cũ chưa xong, chuyển nền/resume và dispose. Kiểm thử đặt xe màn hình nhỏ/chữ lớn vẫn đạt.
+- App tài xế: `driver_controller_test.dart` và `driver_use_case_test.dart` **10/10 đạt** sau khi giảm chu kỳ GPS/heartbeat foreground xuống 5 giây.
+- `flutter analyze` toàn bộ tệp thay đổi ở hai app: **không có issue**. Phân tích toàn app khách còn **23 lint info có sẵn** ở các phần app/push/notifications.
+- Đã xuất lại snapshot OpenAPI từ API local với SQLite tạm: **92 route paths**, bao gồm `/customers/me/nearby-drivers`.
+- Chưa kiểm tra GPS trên thiết bị thật hoặc khi khóa màn hình, chưa đo tải realtime lớn và chưa build lại APK/IPA. Tracking nền vẫn là hạng mục chưa hoàn thiện; kiểm thử ở đây không chứng minh background tracking.
+
 ## Tối ưu tìm và đặt xe app khách — 04/11/2026
 
 - `dotnet test GrapSolution.sln --no-restore --disable-build-servers -m:1`: **41/41 đạt**, thêm 7 ca về tìm không dấu/alias, giới hạn query, số xe đúng điều kiện và scope vùng, role/coordinate validation, HTTP autocomplete adapter và lỗi dữ liệu provider. Kiểm tra đủ GPS/heartbeat cũ, hồ sơ/giấy tờ, session thu hồi, tài xế bận/giữ offer và không trả PII/tọa độ trong response đếm xe.

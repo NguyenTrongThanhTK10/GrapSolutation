@@ -334,13 +334,20 @@ class ApiDriverRepository implements DriverRepository {
 
   @override
   Future<void> location(PositionEvidence position) async {
-    await _client.request(
+    final result = await _client.request(
       '/drivers/me/location-batches',
       method: 'POST',
       body: {
         'samples': [positionToJson(position)],
       },
     );
+    if (result['accepted'] != 1 ||
+        result['latestSequence'] != position.sequence) {
+      throw const Failure(
+        'GPS_NOT_CONFIRMED',
+        'Vị trí chưa được xác nhận. Hãy kiểm tra GPS và cập nhật lại.',
+      );
+    }
   }
 
   @override
@@ -407,7 +414,7 @@ class DeviceLocationProvider implements LocationProvider {
         permission == LocationPermission.deniedForever) {
       throw const Failure(
         'GPS_DENIED',
-        'Chưa có quyền định vị. Bạn vẫn có thể nhập điểm đón thủ công.',
+        'Hãy cấp quyền định vị cho Grap Driver trong cài đặt thiết bị để nhận chuyến.',
       );
     }
     final p = await Geolocator.getCurrentPosition(

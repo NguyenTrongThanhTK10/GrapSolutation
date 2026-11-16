@@ -43,20 +43,35 @@ class History extends Fake implements JourneyRepository {
 }
 
 class DrivingController extends DriverController {
-  int acceptCalls = 0, toggleCalls = 0;
+  int acceptCalls = 0, toggleCalls = 0, arriveCalls = 0, completeCalls = 0;
+  DriverViewState? initial;
+  DrivingController({this.initial});
   @override
-  Future<DriverViewState> build() async => const DriverViewState(
-    availability: Availability(
-      online: false,
-      busy: false,
-      offlineAfterRide: false,
-      deviceActive: true,
-      version: 1,
-      reviewStatus: 'APPROVED',
-    ),
-  );
+  Future<DriverViewState> build() async =>
+      initial ??
+      const DriverViewState(
+        availability: Availability(
+          online: false,
+          busy: false,
+          offlineAfterRide: false,
+          deviceActive: true,
+          version: 1,
+          reviewStatus: 'APPROVED',
+        ),
+      );
   void receive(DriverOffer offer) =>
       state = AsyncData(state.value!.copyWith(offer: offer));
+  void updateView(DriverViewState view) => state = AsyncData(view);
+  @override
+  Future<void> arrive() async {
+    arriveCalls++;
+  }
+
+  @override
+  Future<void> complete() async {
+    completeCalls++;
+  }
+
   @override
   Future<void> refresh({bool? forceSupplemental}) async {}
   @override

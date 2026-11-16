@@ -6,11 +6,13 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../domain/models.dart';
+import '../domain/booking_discovery.dart';
 import '../theme/app_theme.dart';
 
 class GrapMap extends StatefulWidget {
   final Place? pickup, dropoff, driver;
   final List<Place> routePoints, recordedPoints;
+  final List<NearbyDriver> nearbyDrivers;
   final double height, borderRadius;
   final bool showControls, showAttribution;
   final ValueChanged<Place>? onPick;
@@ -21,6 +23,7 @@ class GrapMap extends StatefulWidget {
     this.driver,
     this.routePoints = const [],
     this.recordedPoints = const [],
+    this.nearbyDrivers = const [],
     this.height = 280,
     this.borderRadius = 16,
     this.showControls = true,
@@ -36,6 +39,7 @@ class _GrapMapState extends State<GrapMap> {
   bool ready = false, tilesLoaded = false, tileTimeout = false;
   int tileAttempt = 0;
   Timer? tileTimer;
+  bool nearbyFramed = false;
 
   @override
   void initState() {
@@ -83,6 +87,7 @@ class _GrapMapState extends State<GrapMap> {
       widget.driver,
       ...widget.routePoints,
       ...widget.recordedPoints,
+      ...widget.nearbyDrivers.map((driver) => driver.location),
     ])
       if (place != null) LatLng(place.latitude, place.longitude),
   }.toList();
@@ -124,7 +129,9 @@ class _GrapMapState extends State<GrapMap> {
         );
     if (changed ||
         oldWidget.routePoints != widget.routePoints ||
-        oldWidget.recordedPoints != widget.recordedPoints) {
+        oldWidget.recordedPoints != widget.recordedPoints ||
+        (!nearbyFramed && widget.nearbyDrivers.isNotEmpty)) {
+      nearbyFramed = widget.nearbyDrivers.isNotEmpty;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           fitRoute();
@@ -174,6 +181,7 @@ class _GrapMapState extends State<GrapMap> {
                   ),
             onMapReady: () {
               ready = true;
+              nearbyFramed = widget.nearbyDrivers.isNotEmpty;
               fitRoute();
             },
             initialCenter: LatLng(center.latitude, center.longitude),
@@ -239,6 +247,39 @@ class _GrapMapState extends State<GrapMap> {
               ),
             MarkerLayer(
               markers: [
+                for (final nearby in widget.nearbyDrivers)
+                  Marker(
+                    key: ValueKey('nearby-${nearby.location.id}'),
+                    point: LatLng(
+                      nearby.location.latitude,
+                      nearby.location.longitude,
+                    ),
+                    width: 42,
+                    height: 42,
+                    child: Tooltip(
+                      message:
+                          '${serviceLabel(nearby.service)} đang nhận chuyến',
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: grapGreen, width: 2),
+                          boxShadow: const [
+                            BoxShadow(color: Color(0x25326440), blurRadius: 8),
+                          ],
+                        ),
+                        child: Icon(
+                          nearby.service == 'BIKE'
+                              ? Icons.two_wheeler_rounded
+                              : nearby.service == 'CAR_7'
+                              ? Icons.airport_shuttle_rounded
+                              : Icons.local_taxi_rounded,
+                          color: grapGreen,
+                          size: 25,
+                        ),
+                      ),
+                    ),
+                  ),
                 for (final entry in [
                   (pickup, Icons.circle, grapGreen),
                   (dropoff, Icons.location_on, const Color(0xffc09267)),
