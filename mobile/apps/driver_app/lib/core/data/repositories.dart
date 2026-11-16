@@ -259,6 +259,7 @@ class ApiRideRepository implements RideRepository {
             .build();
         for (final event in [
           'ride.status.changed',
+          'ride.message.created',
           'driver.offer.created',
           'payment.status.changed',
           'ride.driver.location.updated',

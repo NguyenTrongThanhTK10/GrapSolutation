@@ -101,6 +101,7 @@ class TicketDetail {
 class AppNotification {
   final String id, title, body;
   final String? entityId;
+  final String kind;
   final DateTime createdAt;
   final bool read;
   const AppNotification({
@@ -108,6 +109,7 @@ class AppNotification {
     required this.title,
     required this.body,
     this.entityId,
+    this.kind = 'ride',
     required this.createdAt,
     required this.read,
   });

@@ -54,6 +54,14 @@ Vị trí thử nghiệm và báo giá fixture luôn được ghi rõ ở UI. B�
 
 Một tài xế chỉ có một thiết bị nhận offer hoạt động. Đăng xuất phiên cũ trước khi đăng nhập lại trên thiết bị khác. Header tài khoản hỗ trợ chuyển vai trò trong Development và thu hồi phiên cũ.
 
+## Chat với tài xế
+
+Sau khi tài xế nhận chuyến, khách nhấn **Nhắn tin với tài xế** trên thẻ chuyến xe; tài xế nhấn **Nhắn tin với khách**. Hai app hỗ trợ tin nhắn văn bản tối đa 1.000 ký tự, câu trả lời nhanh, xem tin cũ và gửi lại khi mất mạng mà không tạo trùng tin. Tin mới cập nhật qua SignalR và REST dự phòng mỗi 5 giây khi màn chat đang mở ở foreground. Thông báo chat mở đúng cuộc trò chuyện; push cần cấu hình Firebase/APNs như hướng dẫn mobile.
+
+Khi chuyến kết thúc, cuộc trò chuyện chỉ cho xem lại từ chi tiết hành trình. Khi đổi tài xế, cuộc trò chuyện và bản nháp cũ được tách khỏi lần phân công mới; tài xế cũ mất quyền đọc/gửi. Tin nhắn được mã hóa khi lưu bằng Data Protection. Bản nháp và yêu cầu gửi lại trên màn chat không được lưu qua lần đóng ứng dụng.
+
+API tự bổ sung bảng chat vào SQLite local khi khởi động lại, giữ dữ liệu hiện có. PostgreSQL dùng migration `RideChat`, bao gồm schema push còn thiếu để hỗ trợ thông báo chat. Xem [hợp đồng API chat](docs/api/README.md#chat-theo-chuyến-xe).
+
 ## Các vai trò mẫu
 
 | Vai trò | ID | Chức năng chính |

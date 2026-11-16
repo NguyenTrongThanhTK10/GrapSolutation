@@ -904,3 +904,156 @@ BEGIN
 END $EF$;
 COMMIT;
 
+START TRANSACTION;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    ALTER TABLE "Notification" ADD "Kind" text NOT NULL DEFAULT 'ride';
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    CREATE TABLE "PushDevice" (
+        "Id" character varying(64) NOT NULL,
+        "InstallationId" text NOT NULL,
+        "AppType" text NOT NULL,
+        "Platform" text NOT NULL,
+        "UserId" character varying(64) NOT NULL,
+        "SessionId" character varying(64) NOT NULL,
+        "TokenHash" text NOT NULL,
+        "TokenProtected" text NOT NULL,
+        "LastSeenAt" timestamp with time zone NOT NULL,
+        "RevokedAt" timestamp with time zone,
+        "CreatedAt" timestamp with time zone NOT NULL,
+        CONSTRAINT "PK_PushDevice" PRIMARY KEY ("Id"),
+        CONSTRAINT "FK_PushDevice_Session_SessionId" FOREIGN KEY ("SessionId") REFERENCES "Session" ("Id") ON DELETE RESTRICT,
+        CONSTRAINT "FK_PushDevice_User_UserId" FOREIGN KEY ("UserId") REFERENCES "User" ("Id") ON DELETE RESTRICT
+    );
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    CREATE TABLE "RideChatMessage" (
+        "Id" character varying(64) NOT NULL,
+        "RideId" character varying(64) NOT NULL,
+        "AssignmentId" character varying(64) NOT NULL,
+        "SenderId" character varying(64) NOT NULL,
+        "BodyProtected" text NOT NULL,
+        "Sequence" integer NOT NULL,
+        "CreatedAt" timestamp with time zone NOT NULL,
+        CONSTRAINT "PK_RideChatMessage" PRIMARY KEY ("Id"),
+        CONSTRAINT "FK_RideChatMessage_Assignment_AssignmentId" FOREIGN KEY ("AssignmentId") REFERENCES "Assignment" ("Id") ON DELETE RESTRICT,
+        CONSTRAINT "FK_RideChatMessage_Ride_RideId" FOREIGN KEY ("RideId") REFERENCES "Ride" ("Id") ON DELETE RESTRICT,
+        CONSTRAINT "FK_RideChatMessage_User_SenderId" FOREIGN KEY ("SenderId") REFERENCES "User" ("Id") ON DELETE RESTRICT
+    );
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    CREATE TABLE "PushDelivery" (
+        "Id" character varying(64) NOT NULL,
+        "NotificationId" character varying(64) NOT NULL,
+        "DeviceId" character varying(64) NOT NULL,
+        "UserId" text NOT NULL,
+        "SessionId" text NOT NULL,
+        "TokenHash" text NOT NULL,
+        "Status" text NOT NULL,
+        "Attempts" integer NOT NULL,
+        "NextAttemptAt" timestamp with time zone NOT NULL,
+        "ExpiresAt" timestamp with time zone NOT NULL,
+        "SentAt" timestamp with time zone,
+        "LastError" text,
+        "CreatedAt" timestamp with time zone NOT NULL,
+        CONSTRAINT "PK_PushDelivery" PRIMARY KEY ("Id"),
+        CONSTRAINT "FK_PushDelivery_Notification_NotificationId" FOREIGN KEY ("NotificationId") REFERENCES "Notification" ("Id") ON DELETE RESTRICT,
+        CONSTRAINT "FK_PushDelivery_PushDevice_DeviceId" FOREIGN KEY ("DeviceId") REFERENCES "PushDevice" ("Id") ON DELETE RESTRICT
+    );
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    CREATE INDEX "IX_PushDelivery_DeviceId" ON "PushDelivery" ("DeviceId");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    CREATE UNIQUE INDEX "IX_PushDelivery_NotificationId_DeviceId" ON "PushDelivery" ("NotificationId", "DeviceId");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    CREATE INDEX "IX_PushDelivery_Status_NextAttemptAt" ON "PushDelivery" ("Status", "NextAttemptAt");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    CREATE UNIQUE INDEX "IX_PushDevice_InstallationId_AppType" ON "PushDevice" ("InstallationId", "AppType");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    CREATE INDEX "IX_PushDevice_SessionId" ON "PushDevice" ("SessionId");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    CREATE UNIQUE INDEX "IX_PushDevice_TokenHash" ON "PushDevice" ("TokenHash") WHERE "RevokedAt" IS NULL;
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    CREATE INDEX "IX_PushDevice_UserId" ON "PushDevice" ("UserId");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    CREATE UNIQUE INDEX "IX_RideChatMessage_AssignmentId_Sequence" ON "RideChatMessage" ("AssignmentId", "Sequence");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    CREATE INDEX "IX_RideChatMessage_RideId" ON "RideChatMessage" ("RideId");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    CREATE INDEX "IX_RideChatMessage_SenderId" ON "RideChatMessage" ("SenderId");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261116081413_RideChat') THEN
+    INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+    VALUES ('20261116081413_RideChat', '10.0.14');
+    END IF;
+END $EF$;
+COMMIT;
+

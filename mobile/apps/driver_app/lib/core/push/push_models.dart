@@ -15,6 +15,7 @@ class PushMessage {
           'ride',
           'offer',
           'ticket',
+          'chat',
           'application',
           'test',
         ].contains(kind) ||

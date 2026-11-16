@@ -9,7 +9,7 @@ public sealed class AtomicExecutor(GrapDbContext db, ISecrets secrets)
 {
     private static readonly SemaphoreSlim LocalGate = new(1, 1);
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-    public async Task<(string Json, int Status)> Run(string actor, string scope, string? key, string payloadHash, Func<Task<object?>> action, int status = 200, CancellationToken ct = default)
+    public async Task<(string Json, int Status)> Run(string actor, string scope, string? key, string payloadHash, Func<Task<object?>> action, int status = 200, CancellationToken ct = default, Action? authorize = null)
     {
         if (key != null && (key.Length < 8 || key.Length > 150)) throw new RuleException("VALIDATION_ERROR", "Idempotency-Key phải có 8–150 ký tự.", 400);
         await LocalGate.WaitAsync(ct);
@@ -19,6 +19,8 @@ public sealed class AtomicExecutor(GrapDbContext db, ISecrets secrets)
             // A transaction-scoped PostgreSQL lock protects cross-process command ordering.
             // Filtered unique indexes remain the final safeguard. Split this lock by aggregate when scaling.
             if (db.Database.IsNpgsql()) await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(721601)", ct);
+            // Resource authorization must also run for idempotent responses, under the same command lock.
+            authorize?.Invoke();
             if (key != null)
             {
                 var previous = await db.Set<IdempotencyRecord>().SingleOrDefaultAsync(i => i.ActorId == actor && i.Scope == scope && i.Key == key, ct);

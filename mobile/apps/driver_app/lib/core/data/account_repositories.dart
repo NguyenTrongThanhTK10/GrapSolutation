@@ -137,6 +137,7 @@ class ApiAccountRepository implements AccountRepository {
               title: n['title'] as String,
               body: n['body'] as String,
               entityId: n['entityId'] as String?,
+              kind: n['kind'] as String? ?? 'ride',
               createdAt: DateTime.parse(n['createdAt'] as String),
               read: n['readAt'] != null,
             ),

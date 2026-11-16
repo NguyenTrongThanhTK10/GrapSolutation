@@ -67,6 +67,17 @@ Customer gọi `SubscribeNearby(latitude, longitude)` để nhận thông báo c
 - `GET /rides/{id}/ratings/me`: đánh giá hiện tại, `canEdit`, `editableUntil`.
 - `POST /rides/{id}/ratings`: `{stars:1..5,comment:<tối đa 1000 ký tự>}`. Tạo/cập nhật một record của tác giả; cửa sổ hiện tại 24 giờ tính từ EndedAt của chuyến COMPLETED.
 
+## Chat theo chuyến xe
+
+- `GET /rides/{id}/messages`: chỉ khách của chuyến và tài xế của lần phân công hiện hành/cuối cùng. Trả `assignmentId`, `rideCode`, `peerName`, `canSend`, `items`, `hasMore`, `nextBeforeSequence`. Mỗi tin gồm `id`, `assignmentId`, `senderId`, `body`, `sequence`, `createdAt`.
+- Không truyền mốc: lấy 50 tin mới nhất, sắp theo `sequence` tăng dần. `beforeSequence=N` lấy tối đa 50 tin trước N; `nextBeforeSequence` dùng để tải trang cũ hơn. `afterSequence=N` lấy tối đa 50 tin sau N, tăng dần; tiếp tục lấy từ sequence cuối cho tới khi `hasMore=false` để khôi phục tin bị lỡ. Hai mốc không được dùng cùng lúc; before phải > 0, after >= 0.
+- `POST /rides/{id}/messages`: bắt buộc `Idempotency-Key` 8–150 ký tự và JSON `{assignmentId,body}`. Body được trim, dài 1–1.000 ký tự UTF-16, không nhận ký tự điều khiển ngoài xuống dòng/tab. `senderId` lấy từ phiên xác thực. Trả 201 và tin nhắn đã lưu.
+- Chỉ gửi trong ASSIGNED, DRIVER_ARRIVED, IN_PROGRESS và Assignment chưa đóng. Chuyến kết thúc chỉ cho đọc. Không có Assignment phù hợp trả `CHAT_UNAVAILABLE` 409; Assignment body cũ trả `CHAT_ASSIGNMENT_CHANGED` 409; chuyến đóng trả `CHAT_CLOSED` 409; người ngoài trả 404, nhân sự trả 403. Đổi tài xế thu hồi quyền tài xế cũ và tạo luồng tin riêng, kể cả khi thử replay khóa cũ. Quyền replay được kiểm tra trong cùng transaction/command lock.
+- Giới hạn gửi 30 request/phút/tài khoản, trả 429 khi vượt. Client dùng khóa mới cho mỗi tin chủ động; giữ nguyên key/body/assignment khi gửi lại một yêu cầu chưa rõ kết quả. Replay sau khi kết thúc vẫn trả kết quả đã commit nếu quyền Assignment còn hợp lệ.
+- SignalR phát `ride.message.created` tới session khách và tài xế hiện hành, không phát tới nhân sự. Payload chỉ có `aggregateId` và `data{assignmentId,messageId,sequence}`; client đọc nội dung qua REST có kiểm tra quyền. Outbox bỏ qua sự kiện của Assignment đã đóng/đổi tài xế. Nội dung được mã hóa khi lưu; không đưa body vào event hoặc thông báo push.
+
+Bản mobile hiện giữ bản nháp và khóa gửi lại trong vòng đời màn chat; không có hàng đợi gửi tin ngoại tuyến qua lần khởi động lại. Retention/xóa tự động cho hội thoại chưa được áp dụng; dữ liệu dùng cùng quy trình quyền riêng tư đang có của hệ thống.
+
 ## Địa chỉ và liên hệ tin cậy
 
 | Route | Body / quyền |

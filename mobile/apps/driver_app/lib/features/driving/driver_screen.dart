@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:grap_driver/features/chat/presentation/ride_chat_screen.dart';
+
 import 'package:grap_driver/core/push/push_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -306,6 +308,10 @@ class _DriverScreenState extends ConsumerState<DriverScreen>
     final position = s.position;
     return [
       if (ride != null) DriverTripHeading(ride: ride),
+      if (ride != null && ride.driver != null) ...[
+        const SizedBox(height: 12),
+        RideChatButton(rideId: ride.id, readOnly: !ride.active),
+      ],
       if (ride?.active == true && s.availability != null) ...[
         const SizedBox(height: 12),
         SwitchListTile.adaptive(

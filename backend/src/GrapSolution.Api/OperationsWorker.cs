@@ -53,6 +53,23 @@ public sealed class OperationsWorker(IServiceScopeFactory factory, IHubContext<R
                             message.PublishedAt = DateTime.UtcNow;
                             continue;
                         }
+                        if (message.EventType == "ride.message.created")
+                        {
+                            var data = JsonSerializer.Deserialize<JsonElement>(message.Payload);
+                            var assignmentId = data.GetProperty("assignmentId").GetString();
+                            var assignment = await db.Set<Assignment>().AsNoTracking().SingleOrDefaultAsync(a => a.Id == assignmentId, stoppingToken);
+                            var ride = await db.Set<Ride>().AsNoTracking().SingleOrDefaultAsync(r => r.Id == message.AggregateId, stoppingToken);
+                            // An old outbox event must never reach the replacement driver or staff sessions.
+                            if (ride != null && assignment != null && assignment.EndedAt == null && ride.DriverId == assignment.DriverId)
+                            {
+                                var driverUser = await db.Set<Driver>().Where(d => d.Id == assignment.DriverId).Select(d => d.UserId).SingleAsync(stoppingToken);
+                                var recipients = await db.Set<Session>().Where(s => (s.UserId == ride.CustomerId || s.UserId == driverUser) && s.RevokedAt == null && s.ExpiresAt > DateTime.UtcNow)
+                                    .Select(s => "session:" + s.Id).ToListAsync(stoppingToken);
+                                await hub.Clients.Groups(recipients).SendAsync(message.EventType, new { aggregateId = ride.Id, data }, stoppingToken);
+                            }
+                            message.PublishedAt = DateTime.UtcNow;
+                            continue;
+                        }
                         var userIds = new HashSet<string>(); var zoneId = "";
                         if (message.EventType.StartsWith("driver.offer", StringComparison.Ordinal)) { userIds.Add(message.AggregateId); zoneId = (await db.Set<User>().FindAsync([message.AggregateId], stoppingToken))?.ZoneId ?? ""; }
                         else { var ride = await db.Set<Ride>().FindAsync([message.AggregateId], stoppingToken); if (ride != null) { zoneId = ride.ZoneId; userIds.Add(ride.CustomerId); if (ride.DriverId != null) { var driver = await db.Set<Driver>().FindAsync([ride.DriverId], stoppingToken); if (driver != null) userIds.Add(driver.UserId); } } }

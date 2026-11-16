@@ -10,10 +10,10 @@ namespace GrapSolution.Api;
 public static partial class Endpoints
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-    private static async Task<IResult> Write<T>(HttpContext ctx, AtomicExecutor executor, ISecrets secrets, T body, Func<Task<object?>> action, bool idempotent = false, int status = 200)
+    private static async Task<IResult> Write<T>(HttpContext ctx, AtomicExecutor executor, ISecrets secrets, T body, Func<Task<object?>> action, bool idempotent = false, int status = 200, Action? authorize = null)
     {
         var key = ctx.Request.Headers["Idempotency-Key"].FirstOrDefault(); if (idempotent && key == null) throw new RuleException("VALIDATION_ERROR", "Thiếu Idempotency-Key.", 400);
-        var result = await executor.Run(ctx.User.Identity?.IsAuthenticated == true ? ctx.Actor().Id : "public:" + ctx.Connection.RemoteIpAddress, ctx.Request.Path, key, secrets.Hash(JsonSerializer.Serialize(body, Json)), action, status, ctx.RequestAborted);
+        var result = await executor.Run(ctx.User.Identity?.IsAuthenticated == true ? ctx.Actor().Id : "public:" + ctx.Connection.RemoteIpAddress, ctx.Request.Path, key, secrets.Hash(JsonSerializer.Serialize(body, Json)), action, status, ctx.RequestAborted, authorize);
         return Results.Text(result.Json, "application/json", statusCode: result.Status);
     }
     public static void MapGrapEndpoints(this WebApplication app)
@@ -50,6 +50,7 @@ public static partial class Endpoints
             await db.SaveChangesAsync(); return Identity.Issue(user, next, token, config);
         })).RequireRateLimiting("auth");
         var auth = api.MapGroup("").RequireAuthorization();
+        MapRideChat(auth);
         auth.MapPost("/auth/logout", (HttpContext ctx, GrapDbContext db, AtomicExecutor executor, ISecrets secrets) => Write(ctx, executor, secrets, new { }, async () => { var actor = ctx.Actor(); var session = await db.Set<Session>().FindAsync(actor.SessionId); if (session != null) session.RevokedAt = DateTime.UtcNow; foreach (var device in db.Set<PushDevice>().Where(d => d.SessionId == actor.SessionId && d.RevokedAt == null)) { device.RevokedAt = DateTime.UtcNow; device.TokenProtected = ""; } var driver = db.Set<Driver>().SingleOrDefault(d => d.UserId == actor.Id && d.ActiveSessionId == actor.SessionId); if (driver != null) { driver.Online = false; driver.ActiveSessionId = null; } return new { success = true }; }));
         auth.MapGet("/me", (HttpContext ctx, RideService service) => { var user = service.Find<User>(ctx.Actor().Id); return new { user.Id, user.Name, user.Role, user.Email, phone = RideService.Mask(user.Phone), user.ZoneId, user.Version }; });
         auth.MapPatch("/me/profile", (ProfileRequest body, HttpContext ctx, AtomicExecutor executor, ISecrets secrets, RideService service) => Write(ctx, executor, secrets, body, () => { var user = service.Find<User>(ctx.Actor().Id); if (user.Version != body.ExpectedVersion) throw new RuleException("VERSION_CONFLICT", "Hồ sơ đã thay đổi."); if (string.IsNullOrWhiteSpace(body.Name) || body.Name.Length > 100 || body.Email?.Length > 200 || !string.IsNullOrWhiteSpace(body.Email) && !System.Net.Mail.MailAddress.TryCreate(body.Email, out _)) throw new RuleException("VALIDATION_ERROR", "Thông tin hồ sơ không hợp lệ.", 400); user.Name = body.Name.Trim(); user.Email = string.IsNullOrWhiteSpace(body.Email) ? null : body.Email.Trim(); user.Version++; return Task.FromResult<object?>(new { user.Id, user.Name, user.Email, user.Version }); }));

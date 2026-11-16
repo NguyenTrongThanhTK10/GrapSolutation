@@ -341,6 +341,7 @@ class ApiClient {
     String method = 'GET',
     Object? body,
     bool idempotent = false,
+    String? idempotencyKey,
     List<int>? bytes,
     String? contentType,
   }) async {
@@ -373,7 +374,9 @@ class ApiClient {
       await _persist();
       _check(epoch);
     } else if (idempotent) {
-      key = _volatile.putIfAbsent(identity, () => const Uuid().v4());
+      key =
+          idempotencyKey ??
+          _volatile.putIfAbsent(identity, () => const Uuid().v4());
     }
     String? sentToken;
     Future<Response<dynamic>> send() {

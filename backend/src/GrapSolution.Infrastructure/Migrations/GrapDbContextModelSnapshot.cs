@@ -549,6 +549,10 @@ namespace GrapSolution.Infrastructure.Migrations
                     b.Property<string>("EntityId")
                         .HasColumnType("text");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("ReadAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -756,6 +760,125 @@ namespace GrapSolution.Infrastructure.Migrations
                     b.HasIndex("OwnerId");
 
                     b.ToTable("PrivateFile");
+                });
+
+            modelBuilder.Entity("GrapSolution.Domain.PushDelivery", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeviceId")
+                        .IsRequired()
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NotificationId")
+                        .IsRequired()
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeviceId");
+
+                    b.HasIndex("NotificationId", "DeviceId")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "NextAttemptAt");
+
+                    b.ToTable("PushDelivery");
+                });
+
+            modelBuilder.Entity("GrapSolution.Domain.PushDevice", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("AppType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("InstallationId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TokenProtected")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasFilter("\"RevokedAt\" IS NULL");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("InstallationId", "AppType")
+                        .IsUnique();
+
+                    b.ToTable("PushDevice");
                 });
 
             modelBuilder.Entity("GrapSolution.Domain.Quote", b =>
@@ -991,6 +1114,46 @@ namespace GrapSolution.Infrastructure.Migrations
                     b.HasIndex("CustomerId", "CreatedAt", "Id");
 
                     b.ToTable("Ride");
+                });
+
+            modelBuilder.Entity("GrapSolution.Domain.RideChatMessage", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("AssignmentId")
+                        .IsRequired()
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("BodyProtected")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RideId")
+                        .IsRequired()
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SenderId")
+                        .IsRequired()
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RideId");
+
+                    b.HasIndex("SenderId");
+
+                    b.HasIndex("AssignmentId", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("RideChatMessage");
                 });
 
             modelBuilder.Entity("GrapSolution.Domain.RideContactAttempt", b =>
@@ -1488,6 +1651,36 @@ namespace GrapSolution.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("GrapSolution.Domain.PushDelivery", b =>
+                {
+                    b.HasOne("GrapSolution.Domain.PushDevice", null)
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GrapSolution.Domain.Notification", null)
+                        .WithMany()
+                        .HasForeignKey("NotificationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GrapSolution.Domain.PushDevice", b =>
+                {
+                    b.HasOne("GrapSolution.Domain.Session", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GrapSolution.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("GrapSolution.Domain.Ride", b =>
                 {
                     b.HasOne("GrapSolution.Domain.User", null)
@@ -1504,6 +1697,27 @@ namespace GrapSolution.Infrastructure.Migrations
                     b.HasOne("GrapSolution.Domain.Quote", null)
                         .WithMany()
                         .HasForeignKey("QuoteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GrapSolution.Domain.RideChatMessage", b =>
+                {
+                    b.HasOne("GrapSolution.Domain.Assignment", null)
+                        .WithMany()
+                        .HasForeignKey("AssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GrapSolution.Domain.Ride", null)
+                        .WithMany()
+                        .HasForeignKey("RideId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GrapSolution.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("SenderId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:grap_customer/features/chat/presentation/ride_chat_screen.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -88,6 +90,14 @@ class _GrapMaterialAppState extends ConsumerState<GrapMaterialApp>
         ref
             .read(pushIntentProvider.notifier)
             .receive(PushEvent(message, opened: true));
+      } else if (message.kind == 'chat' && message.entityId.isNotEmpty) {
+        unawaited(
+          nav.push<void>(
+            MaterialPageRoute(
+              builder: (_) => RideChatScreen(rideId: message.entityId),
+            ),
+          ),
+        );
       } else if (message.kind == 'ride' && message.entityId.isNotEmpty) {
         unawaited(
           nav.push<void>(

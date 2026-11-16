@@ -192,6 +192,89 @@
         }
       }
     },
+    "/api/v1/rides/{id}/messages": {
+      "get": {
+        "tags": [
+          "GrapSolution.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "beforeSequence",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "afterSequence",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnonymousTypeOfstringAndstringAndstringAndbooleanAndIEnumerableOfObjectAndbooleanAndint"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "GrapSolution.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendRideMessage"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/auth/logout": {
       "post": {
         "tags": [
@@ -482,7 +565,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -528,7 +611,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -584,7 +667,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -1068,7 +1151,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -2180,7 +2263,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -2207,7 +2290,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -2707,7 +2790,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -3301,7 +3384,7 @@
             ],
             "format": "int64"
           },
-          "balance": {},
+          "balance": { },
           "items": {
             "type": [
               "null",
@@ -3558,7 +3641,7 @@
         ],
         "type": "object",
         "properties": {
-          "ride": {},
+          "ride": { },
           "serverTime": {
             "type": "string",
             "format": "date-time"
@@ -3904,7 +3987,7 @@
               "string"
             ]
           },
-          "balance": {}
+          "balance": { }
         }
       },
       "AnonymousTypeOfstringAndstringAndstring": {
@@ -3979,6 +4062,59 @@
           "serverTime": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "AnonymousTypeOfstringAndstringAndstringAndbooleanAndIEnumerableOfObjectAndbooleanAndint": {
+        "required": [
+          "assignmentId",
+          "rideCode",
+          "peerName",
+          "canSend",
+          "items",
+          "hasMore",
+          "nextBeforeSequence"
+        ],
+        "type": "object",
+        "properties": {
+          "assignmentId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rideCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "peerName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "canSend": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": [
+              "null",
+              "array"
+            ]
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "nextBeforeSequence": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -5819,6 +5955,24 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "SendRideMessage": {
+        "required": [
+          "assignmentId",
+          "body"
+        ],
+        "type": "object",
+        "properties": {
+          "assignmentId": {
+            "type": "string"
+          },
+          "body": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

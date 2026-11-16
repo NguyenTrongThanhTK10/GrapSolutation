@@ -35,6 +35,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     };
 });
 builder.Services.AddAuthorization(); builder.Services.AddSignalR(); builder.Services.AddOpenApi();
+builder.Services.Configure<Microsoft.AspNetCore.RateLimiting.RateLimiterOptions>(options =>
+    options.AddPolicy("chat", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous",
+        _ => new() { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 })));
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.WithOrigins((builder.Configuration["AllowedOrigins"] ?? "http://127.0.0.1:5173,http://localhost:5173").Split(',')).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context => RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new() { PermitLimit = 300, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 })); options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new() { PermitLimit = 15, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 })); });
 builder.Services.AddSingleton<IPushSender>(_ => new FirebasePushSender(builder.Configuration.GetValue<bool>("Firebase:Enabled"), builder.Configuration["Firebase:ProjectId"] ?? ""));
@@ -54,7 +58,7 @@ app.Use(async (context, next) =>
         context.Response.StatusCode = status; await context.Response.WriteAsJsonAsync(new { type = "urn:grap:problem:" + code.ToLowerInvariant().Replace('_', '-'), title = rule?.Message ?? "Không thể xử lý yêu cầu.", status, code, traceId = context.TraceIdentifier, currentVersion = rule?.CurrentVersion });
     }
 });
-app.UseCors(); app.UseRateLimiter(); app.UseAuthentication(); app.UseAuthorization();
+app.UseCors(); app.UseAuthentication(); app.UseRateLimiter(); app.UseAuthorization();
 app.MapGet("/health/live", () => Results.Ok(new { status = "ok" }));
 app.MapGet("/health/ready", async (GrapDbContext db) => await db.Database.CanConnectAsync() ? Results.Ok(new { status = "ready" }) : Results.StatusCode(503));
 if (development) app.MapOpenApi();

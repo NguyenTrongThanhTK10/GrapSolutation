@@ -45,6 +45,10 @@ public sealed class GrapDbContext(DbContextOptions<GrapDbContext> options) : DbC
         b.Entity<LocationSample>().HasIndex(s => new { s.DriverId, s.SessionId, s.SampleId }).IsUnique();
         b.Entity<RideContactAttempt>().HasOne<Ride>().WithMany().HasForeignKey(a => a.RideId).OnDelete(DeleteBehavior.Restrict);
         b.Entity<RideContactAttempt>().HasIndex(a => new { a.RideId, a.DriverId, a.CreatedAt });
+        b.Entity<RideChatMessage>().HasOne<Ride>().WithMany().HasForeignKey(m => m.RideId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<RideChatMessage>().HasOne<Assignment>().WithMany().HasForeignKey(m => m.AssignmentId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<RideChatMessage>().HasOne<User>().WithMany().HasForeignKey(m => m.SenderId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<RideChatMessage>().HasIndex(m => new { m.AssignmentId, m.Sequence }).IsUnique();
         b.Entity<DriverDocument>().HasOne<Driver>().WithMany().HasForeignKey(d => d.DriverId).OnDelete(DeleteBehavior.Restrict);
         b.Entity<SavedPlace>().HasOne<User>().WithMany().HasForeignKey(p => p.CustomerId).OnDelete(DeleteBehavior.Restrict);
         b.Entity<SavedPlace>().HasIndex(p => new { p.CustomerId, p.LabelKey }).IsUnique().HasFilter("\"DeletedAt\" IS NULL");

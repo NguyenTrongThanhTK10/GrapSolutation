@@ -1,9 +1,11 @@
+import 'package:grap_customer/features/chat/presentation/ride_chat_screen.dart';
 import 'package:grap_customer/features/places/presentation/place_picker_screen.dart';
 import 'package:grap_customer/features/account/presentation/account_screens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grap_customer/core/core.dart';
 import 'package:grap_customer/core/widgets/app_widgets.dart';
+
 import 'ride_journey_map.dart';
 
 String journeyDate(DateTime at) => at.toLocal().toString().substring(0, 16);
@@ -258,6 +260,8 @@ class RideReceiptScreen extends ConsumerWidget {
                         '${stateLabel(r.status)} · ${serviceLabel(r.service)}',
                       ),
                       Text(journeyDate(r.createdAt)),
+                      if (r.driver != null)
+                        RideChatButton(rideId: r.id, readOnly: !r.active),
                       const Divider(),
                       Text('Điểm đón: ${r.pickup.address}'),
                       const SizedBox(height: 12),

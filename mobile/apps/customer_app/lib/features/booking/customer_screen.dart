@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:grap_customer/features/chat/presentation/ride_chat_screen.dart';
+
 import 'package:grap_customer/core/push/push_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -668,6 +670,7 @@ class _CustomerScreenState extends ConsumerState<CustomerScreen>
             ],
             if (ride.driver != null) ...[
               const Divider(),
+              RideChatButton(rideId: ride.id, readOnly: !ride.active),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const CircleAvatar(

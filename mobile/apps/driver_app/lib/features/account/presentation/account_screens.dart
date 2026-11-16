@@ -1,3 +1,4 @@
+import 'package:grap_driver/features/chat/presentation/ride_chat_screen.dart';
 import 'package:grap_driver/features/notifications/presentation/push_settings_panel.dart';
 import 'package:grap_driver/features/privacy/presentation/privacy_screens.dart';
 import 'package:grap_driver/features/journey/presentation/journey_screens.dart';
@@ -712,6 +713,17 @@ class NotificationsScreen extends ConsumerWidget {
                                     .read(accountRepositoryProvider)
                                     .markRead(n.id);
                                 ref.invalidate(notificationsProvider);
+                                if (context.mounted &&
+                                    n.kind == 'chat' &&
+                                    n.entityId != null) {
+                                  await Navigator.push<void>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          RideChatScreen(rideId: n.entityId!),
+                                    ),
+                                  );
+                                }
                               } catch (e) {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(

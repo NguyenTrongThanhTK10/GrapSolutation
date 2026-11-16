@@ -2,6 +2,15 @@
 
 Kiểm tra trên macOS/Apple Silicon; giao diện mobile ngày **03/11/2026**, web quản trị và thống kê mobile cập nhật ngày **04/11/2026**. Toolchain thực tế: .NET SDK 10.0.401, Node 20.19.0, Flutter 3.47.6, Dart 3.13.5.
 
+## Chat khách hàng và tài xế — 16/11/2026
+
+- Toàn bộ backend: **54/54 đạt** với `dotnet test --no-build --no-restore --disable-build-servers`. Hai bộ mới `RideChatTests` và `RideChatRealtimeTests` gồm **9/9 ca**: hai chiều/đúng sender, mã hóa nội dung, ownership, trạng thái kết thúc, replay, đổi tài xế, phân trang có timestamp trùng, gửi đồng thời và hạn mức 30 request/phút/tài khoản.
+- Kiểm thử SignalR dùng WebSocket thật qua TestServer: tài xế hiện hành nhận `ride.message.created`; tài xế chưa được phân công và nhân sự không nhận; sau đổi tài xế, kết nối cũ không nhận tin của lần phân công mới; outbox cũ không phát sang tài xế thay thế. Payload không chứa nội dung tin nhắn.
+- Toàn bộ app khách: **102/102 đạt**; toàn bộ app tài xế: **91/91 đạt**, chạy `flutter test --no-pub --reporter expanded` trong từng app. Mỗi app có **13 ca chat mới**, gồm repository/key gửi lại, tin nhanh, không trùng tin, khôi phục tin đến đồng thời lúc gửi, chỉ đọc sau chuyến, xóa dữ liệu/bản nháp khi đổi phân công, chuyển nền/resume và response trễ sau logout. Bố cục chat được kiểm tra ở 320×640 với bàn phím 220 px.
+- `flutter analyze --no-pub --no-fatal-infos`: không có error/warning; còn 23 lint info có sẵn về dấu ngoặc `if` trên mỗi app. Mã chat mới không có issue.
+- Backend build không có warning/error. Đã xuất lại OpenAPI từ API chạy với SQLite tạm, sinh SQL migration PostgreSQL và xác minh EF model không còn thay đổi chưa có migration. Migration chat bổ sung cả schema push đã có trong model nhưng chưa được đưa vào migration trước đó; Notification cũ mặc định loại `ride`.
+- Chưa chạy migration trên PostgreSQL thật, chưa build APK/IPA hoặc kiểm thử trao đổi trên hai thiết bị vật lý/FCM/APNs trong đợt này. Bản nháp và yêu cầu chat chưa rõ kết quả chỉ được giữ trong vòng đời màn hình, không qua restart; retention tự động chưa triển khai.
+
 ## Giao diện app tài xế — 16/11/2026
 
 - Toàn bộ `flutter test` app tài xế: **78/78 đạt**, gồm 9 ca mới cho nút nhận chuyến và đến đón/hoàn tất cố định khi cuộn ở 320×640, 640×320, chữ 160%; hiển thị vị trí đã gửi và lỗi GPS; số dư trên màn hình hẹp; kiểm tra server đã nhận đúng mẫu GPS; giữ vị trí/lỗi GPS khi lệnh hỗ trợ hoàn tất đồng thời; căn lại bản đồ khi tọa độ không đổi.

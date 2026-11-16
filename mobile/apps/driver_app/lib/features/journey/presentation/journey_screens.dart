@@ -1,3 +1,4 @@
+import 'package:grap_driver/features/chat/presentation/ride_chat_screen.dart';
 import 'package:grap_driver/features/places/presentation/place_picker_screen.dart';
 import 'package:grap_driver/features/account/presentation/account_screens.dart';
 import 'package:flutter/material.dart';
@@ -255,6 +256,8 @@ class RideReceiptScreen extends ConsumerWidget {
                         '${stateLabel(r.status)} · ${serviceLabel(r.service)}',
                       ),
                       Text(journeyDate(r.createdAt)),
+                      if (r.driver != null)
+                        RideChatButton(rideId: r.id, readOnly: !r.active),
                       const Divider(),
                       Text('Điểm đón: ${r.pickup.address}'),
                       const SizedBox(height: 12),
