@@ -1,0 +1,57 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "customer_app",
+            "cwd": "mobile/apps/customer_app",
+            "request": "launch",
+            "type": "dart",
+            "deviceId": "emulator-5554",
+            "preLaunchTask": "customer: forward local ports",
+            "toolArgs": [
+                "--dart-define=ENABLE_DEV_LOGIN=true",
+                "--dart-define=API_BASE_URL=http://127.0.0.1:5080",
+                "--dart-define=PORTAL_BASE_URL=http://127.0.0.1:5173",
+                // Local preview while tile.openstreetmap.org is unreachable.
+                "--dart-define=MAP_TILE_URL=https://tile.openstreetmap.de/{z}/{x}/{y}.png"
+            ]
+        },
+        {
+            "name": "customer_app (profile mode)",
+            "cwd": "mobile/apps/customer_app",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
+        },
+        {
+            "name": "customer_app (release mode)",
+            "cwd": "mobile/apps/customer_app",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        },
+        {
+            "name": "driver_app",
+            "cwd": "mobile/apps/driver_app",
+            "request": "launch",
+            "type": "dart"
+        },
+        {
+            "name": "driver_app (profile mode)",
+            "cwd": "mobile/apps/driver_app",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
+        },
+        {
+            "name": "driver_app (release mode)",
+            "cwd": "mobile/apps/driver_app",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        }
+    ]
+}

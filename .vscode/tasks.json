@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "customer: forward API",
+            "type": "process",
+            "command": "adb",
+            "args": ["-s", "emulator-5554", "reverse", "tcp:5080", "tcp:5080"],
+            "problemMatcher": []
+        },
+        {
+            "label": "customer: forward portal",
+            "type": "process",
+            "command": "adb",
+            "args": ["-s", "emulator-5554", "reverse", "tcp:5173", "tcp:5173"],
+            "problemMatcher": []
+        },
+        {
+            "label": "customer: forward local ports",
+            "dependsOn": ["customer: forward API", "customer: forward portal"],
+            "dependsOrder": "sequence",
+            "problemMatcher": []
+        }
+    ]
+}

@@ -44,13 +44,16 @@ class _GrapMaterialAppState extends ConsumerState<GrapMaterialApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed)
+    if (state == AppLifecycleState.resumed) {
       unawaited(ref.read(pushCoordinatorProvider).synchronize());
+    }
   }
 
   void _receive(PushEvent event) {
-    if (!mounted || ref.read(sessionProvider).value?.id != event.message.userId)
+    if (!mounted ||
+        ref.read(sessionProvider).value?.id != event.message.userId) {
       return;
+    }
     ref.invalidate(notificationsProvider);
     if (event.message.kind == 'ticket') {
       ref.invalidate(ticketsProvider);
@@ -80,8 +83,9 @@ class _GrapMaterialAppState extends ConsumerState<GrapMaterialApp>
       await ref.read(accountRepositoryProvider).markRead(message.id);
       if (!mounted ||
           scope != ref.read(apiClientProvider).sessionScope ||
-          ref.read(sessionProvider).value?.id != message.userId)
+          ref.read(sessionProvider).value?.id != message.userId) {
         return;
+      }
       ref.invalidate(notificationsProvider);
       final nav = navigator.currentState;
       if (nav == null) return;

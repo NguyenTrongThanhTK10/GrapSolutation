@@ -36,6 +36,9 @@ class GrapMap extends StatefulWidget {
 
 class _GrapMapState extends State<GrapMap> {
   final controller = MapController();
+  NetworkTileProvider tileProvider = NetworkTileProvider(
+    silenceExceptions: true,
+  );
   bool ready = false, tilesLoaded = false, tileTimeout = false;
   int tileAttempt = 0;
   Timer? tileTimer;
@@ -59,6 +62,8 @@ class _GrapMapState extends State<GrapMap> {
   void _retryTiles() {
     setState(() {
       tileAttempt++;
+      // The previous keyed TileLayer disposes its own provider/client.
+      tileProvider = NetworkTileProvider(silenceExceptions: true);
       tilesLoaded = false;
       tileTimeout = false;
     });
@@ -193,8 +198,14 @@ class _GrapMapState extends State<GrapMap> {
           children: [
             TileLayer(
               key: ValueKey(tileAttempt),
+              tileProvider: tileProvider,
               tileBuilder: (context, tileWidget, tile) {
-                if (!tile.loadError && tile.imageInfo != null) {
+                final image = tile.imageInfo?.image;
+                // NetworkTileProvider returns a transparent 1x1 image on
+                // failure. It must not dismiss the timeout/retry notice.
+                if (!tile.loadError &&
+                    image != null &&
+                    (image.width > 1 || image.height > 1)) {
                   _tileLoaded();
                 }
                 return tileWidget;

@@ -36,6 +36,10 @@ Firebase client Android/iOS đã được tích hợp trong cả hai app. Để 
 
 Nền bản đồ local dùng tile OpenStreetMap; web có `VITE_MAP_TILE_URL`, mobile có `--dart-define=MAP_TILE_URL=...` để chuyển provider. Không dùng máy chủ tile cộng đồng như hạ tầng có SLA cho pilot thương mại. Phải giữ attribution và chính sách cache của provider; không bật tải tile hàng loạt.
 
+Nếu ảnh tile báo `Connection reset by peer`, thử chính URL bằng `curl -I -A 'GrapCustomer/0.1' '<URL ảnh>'` trên máy host. Nếu host cũng lỗi thì cần kiểm tra đường mạng/VPN/firewall tới nhà cung cấp. Lỗi này độc lập với API local. App giữ thông báo và nút **Thử lại bản đồ** khi không tải được ảnh; ảnh trong suốt thay cho tile lỗi không được coi là tải bản đồ thành công.
+
+Cấu hình VS Code **customer_app** dành cho Android Emulator `emulator-5554`: tự nối cổng API/portal qua ADB, bật tài khoản mẫu, và đặt `MAP_TILE_URL=https://tile.openstreetmap.de/{z}/{x}/{y}.png` cho xem thử local khi miền `.org` không truy cập được. Dừng và chạy lại cấu hình để áp dụng `--dart-define`; hot reload không đổi các giá trị này. Nguồn tile thay thế chỉ dùng cho xem thử phát triển, có thể hiện thêm tên địa danh tiếng Đức; đọc [điều kiện của OSM Germany](https://openstreetmap.de/germanstyle/) trước khi sử dụng ngoài local. Khi phát hành, cấu hình nhà cung cấp phù hợp cùng attribution của họ.
+
 ## Release mobile
 
 Android release không dùng debug keystore. Cấu hình signing riêng, application ID, store policies và secret trong CI. Không bật ENABLE_DEV_LOGIN ở release. iOS cần team/provisioning riêng; bản Simulator đã kiểm tra không phải IPA ký để phát hành.

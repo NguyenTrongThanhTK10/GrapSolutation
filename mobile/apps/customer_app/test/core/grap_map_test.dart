@@ -27,13 +27,26 @@ Widget map(Place pickup, {Place? dropoff}) => MaterialApp(
 );
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  setUpAll(
-    () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+  late Directory cacheDirectory;
+  late BuiltInMapCachingProvider cache;
+  setUpAll(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
           const MethodChannel('plugins.flutter.io/path_provider'),
           (call) async => Directory.systemTemp.path,
-        ),
-  );
+        );
+    // Initialise filesystem work outside the widget test's fake clock so tile
+    // requests can actually reach the simulated HTTP client.
+    cacheDirectory = await Directory.systemTemp.createTemp('grap-map-test-');
+    cache = BuiltInMapCachingProvider.getOrCreateInstance(
+      cacheDirectory: cacheDirectory.path,
+    );
+    await cache.getTile('warm-up');
+  });
+  tearDownAll(() async {
+    await cache.destroy(deleteCache: true);
+    await cacheDirectory.delete(recursive: true);
+  });
   testWidgets(
     'detailed routes render all bends and fit coordinates beyond the endpoints',
     (tester) async {
@@ -140,4 +153,65 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+  testWidgets(
+    'connection resets keep retry available without image service exceptions',
+    (tester) async {
+      final clients = <_ResetHttpClient>[];
+      tester.binding.imageCache.clear();
+      tester.binding.imageCache.clearLiveImages();
+      await HttpOverrides.runZoned(
+        () async {
+          await tester.pumpWidget(map(original));
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 100)),
+          );
+          await tester.pumpAndSettle();
+          expect(clients.single.requests, greaterThan(0));
+          expect(tester.takeException(), isNull);
+          await tester.pump(const Duration(seconds: 9));
+          expect(find.byTooltip('Thử lại bản đồ'), findsOneWidget);
+
+          final firstClient = clients.single;
+          await tester.tap(find.byTooltip('Thử lại bản đồ'));
+          await tester.pump();
+          expect(find.byTooltip('Thử lại bản đồ'), findsNothing);
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 100)),
+          );
+          await tester.pumpAndSettle();
+          expect(firstClient.closed, isTrue);
+          expect(clients, hasLength(2));
+          expect(clients.last.requests, greaterThan(0));
+          expect(tester.takeException(), isNull);
+          await tester.pump(const Duration(seconds: 9));
+          expect(find.byTooltip('Thử lại bản đồ'), findsOneWidget);
+          expect(find.byTooltip('Xem toàn bộ hành trình'), findsOneWidget);
+          await tester.pumpWidget(const SizedBox.shrink());
+          expect(clients.last.closed, isTrue);
+        },
+        createHttpClient: (_) {
+          final client = _ResetHttpClient();
+          clients.add(client);
+          return client;
+        },
+      );
+    },
+  );
+}
+
+class _ResetHttpClient extends Fake implements HttpClient {
+  int requests = 0;
+  bool closed = false;
+
+  @override
+  Future<HttpClientRequest> openUrl(String method, Uri url) async {
+    requests++;
+    throw const SocketException(
+      'Connection reset by peer',
+      osError: OSError('Connection reset by peer', 104),
+    );
+  }
+
+  @override
+  void close({bool force = false}) => closed = true;
 }

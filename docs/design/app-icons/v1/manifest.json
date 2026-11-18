@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "mode": "Built-in image_gen",
+  "design": {
+    "customer": {
+      "background": "#087F50",
+      "symbol": "White location pin with a navigation arrow cutout"
+    },
+    "driver": {
+      "background": "#172C24",
+      "symbol": "White steering wheel with a navigation arrow cutout"
+    }
+  },
+  "prompts": {
+    "customer_initial": "Use case: logo-brand.\nAsset type: production mobile app icon foreground for Grap Customer, transparent PNG, square 1024x1024 canvas.\nPrimary request: design a premium, immediately recognizable, minimal white location-pin emblem with a bold northeast-pointing navigation arrow CUT OUT of the pin's center as transparent negative space. The pin is broad and compact, with a rounded circular head and a clean gently rounded lower point. The cut-out arrow is large and open enough to remain visible at 48px. This belongs to an existing Vietnamese ride-hailing brand whose palette is emerald #087F50 and forest #172C24 and whose current symbol is a northeast navigation arrow.\nStyle: flat, crisp, geometric vector-like logo, confident thick silhouette, carefully balanced negative space, friendly subtly rounded joins, perfectly clean edges.\nComposition: one isolated emblem, optically centered. ALL visible white artwork must fit INSIDE the central 600x600 area of the 1024x1024 transparent canvas, with at least 212px fully transparent padding on every side. Pin and arrow must be one unified emblem. Pure opaque white artwork only, aside from antialiased edges.\nConstraints: genuine transparent background; the central arrow cutout must also be transparent; no color background, no tile, no rounded-square container, no frame, no shadow, no texture, no gradients, no 3D, no letters, no words, no numbers, no watermark, no mockup, no phone, no extra symbols. Deliver ONLY the icon foreground with generous transparent safe padding.",
+    "customer_final": "Use case: logo-brand. Input image is the edit target. Preserve the existing compact location-pin silhouette and the northeast navigation-arrow cutout, their placement, proportions, and generous padding. Make this a finished, CLEAN flat mobile app icon: replace all transparent background pixels with one perfectly uniform solid emerald green #087F50, and fill the entire arrow-shaped cutout with exactly that same green. The pin itself must be perfectly solid pure white #FFFFFF. Completely remove all grain, speckling, texture, white fragments inside the arrow cutout, glow, and thin sketch outlines. Make all contours mathematically smooth with sharp antialiasing. Full-bleed opaque square image; no rounded-square mask, no border, no shadow, no gradient, no text. The only two colors are white and emerald, apart from antialiased edges. Keep the whole glyph within the central 60% of the canvas. Return just the finished single icon, no presentation board.",
+    "driver": "Use case: logo-brand.\nAsset type: finished opaque square mobile launcher icon for Grap Driver, companion to Grap Customer's white location-pin/navigation-arrow icon on emerald.\nPrimary request: one bold white STEERING WHEEL emblem for a professional Vietnamese ride-hailing driver app. Use a perfectly circular thick outer rim, three clean robust spokes, and a solid central hub with a small northeast-pointing navigation arrow CUT OUT of the hub in the same dark background color. Large clean negative spaces between spokes. The steering wheel must be immediately recognizable at 48px; the arrow is a subtle shared family detail.\nStyle: premium minimal flat geometric vector-like logo, smooth crisp contours, slightly rounded joins, optically balanced. Exactly the same simple visual language as a solid white location pin with a negative-space navigation arrow.\nBackground: full-bleed perfectly uniform solid dark forest green #172C24. Artwork: perfectly solid pure white #FFFFFF. ONLY two flat colors except antialiased edges. No shades, textures, gradients or lighting.\nComposition: a single emblem, precisely centered, fully contained in the CENTRAL 58% of the square canvas in both dimensions; generous even background padding. Front-on, absolutely no perspective.\nConstraints: no rounded-square container or outer mask, no frame, no shadow, no gloss, no 3D, no car, no person, no road illustration, no letters, no words, no watermark, no mockup. Deliver just one production icon with a complete opaque square background."
+  },
+  "sources": {
+    "customer": "customer-source.png",
+    "driver": "driver-source.png"
+  },
+  "export": "swift -module-cache-path /private/tmp/grap-icon-module-cache mobile/tool/export_app_icons.swift",
+  "references": {
+    "android": "https://developer.android.com/develop/ui/compose/system/icon_design_adaptive",
+    "ios": "https://developer.apple.com/design/human-interface-guidelines/app-icons"
+  }
+}
