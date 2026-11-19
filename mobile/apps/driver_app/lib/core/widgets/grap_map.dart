@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -7,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../domain/models.dart';
 import '../theme/app_theme.dart';
+import 'grap_tile_layer.dart';
 
 class GrapMap extends StatefulWidget {
   final Place? pickup, dropoff, driver;
@@ -30,64 +29,50 @@ class GrapMap extends StatefulWidget {
   State<GrapMap> createState() => _GrapMapState();
 }
 
+bool _usable(Place? place) =>
+    place != null &&
+    place.latitude.isFinite &&
+    place.longitude.isFinite &&
+    place.latitude >= -90 &&
+    place.latitude <= 90 &&
+    place.longitude >= -180 &&
+    place.longitude <= 180;
+
+bool _samePoint(Place? a, Place? b) =>
+    a?.latitude == b?.latitude && a?.longitude == b?.longitude;
+
+List<LatLng> _coordinates(Iterable<Place> places) => [
+  for (final place in places)
+    if (_usable(place)) LatLng(place.latitude, place.longitude),
+];
+
 class _GrapMapState extends State<GrapMap> {
   final controller = MapController();
-  bool ready = false, tilesLoaded = false, tileTimeout = false;
-  int tileAttempt = 0;
-  Timer? tileTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _watchTiles();
-  }
-
-  void _watchTiles() {
-    tileTimer?.cancel();
-    tileTimer = Timer(const Duration(seconds: 8), () {
-      if (mounted && !tilesLoaded) {
-        setState(() => tileTimeout = true);
-      }
-    });
-  }
-
-  void _retryTiles() {
-    setState(() {
-      tileAttempt++;
-      tilesLoaded = false;
-      tileTimeout = false;
-    });
-    _watchTiles();
-  }
-
-  void _tileLoaded() {
-    if (tilesLoaded) {
-      return;
-    }
-    tilesLoaded = true;
-    tileTimer?.cancel();
-    if (tileTimeout) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() => tileTimeout = false);
-        }
-      });
-    }
-  }
+  bool ready = false, userMoved = false, frameScheduled = false;
 
   List<LatLng> get points => {
-    for (final place in [widget.pickup, widget.dropoff, widget.driver])
-      if (place != null) LatLng(place.latitude, place.longitude),
+    ..._coordinates([?widget.pickup, ?widget.dropoff, ?widget.driver]),
   }.toList();
 
+  void _scheduleFit() {
+    if (frameScheduled) return;
+    frameScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      frameScheduled = false;
+      if (mounted && !userMoved) _fitRoute();
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
   void fitRoute() {
-    if (!ready) {
-      return;
-    }
+    userMoved = false;
+    _fitRoute();
+  }
+
+  void _fitRoute() {
+    if (!ready) return;
     final size = controller.camera.nonRotatedSize;
-    if (size.width <= 96 || size.height <= 96) {
-      return;
-    }
+    if (size.width <= 96 || size.height <= 96) return;
     final coordinates = points;
     if (coordinates.length > 1) {
       controller.fitCamera(
@@ -98,49 +83,46 @@ class _GrapMapState extends State<GrapMap> {
         ),
       );
     } else if (coordinates.isNotEmpty) {
-      controller.move(coordinates.single, 15);
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant GrapMap oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final changed =
-        [
-          (oldWidget.pickup, widget.pickup),
-          (oldWidget.dropoff, widget.dropoff),
-          (oldWidget.driver, widget.driver),
-        ].any(
-          (pair) =>
-              pair.$1?.latitude != pair.$2?.latitude ||
-              pair.$1?.longitude != pair.$2?.longitude,
-        );
-    if (changed || oldWidget.cameraRevision != widget.cameraRevision) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          fitRoute();
-        }
-      });
+      controller.move(
+        coordinates.single,
+        widget.onPick == null ? 15 : controller.camera.zoom,
+      );
     }
   }
 
   @override
   void dispose() {
-    tileTimer?.cancel();
     controller.dispose();
     super.dispose();
   }
 
   @override
+  void didUpdateWidget(covariant GrapMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final endpointsChanged =
+        !_samePoint(oldWidget.pickup, widget.pickup) ||
+        !_samePoint(oldWidget.dropoff, widget.dropoff);
+    final explicit = oldWidget.cameraRevision != widget.cameraRevision;
+    if (endpointsChanged || explicit) userMoved = false;
+    if (!userMoved &&
+        (endpointsChanged ||
+            explicit ||
+            !_samePoint(oldWidget.driver, widget.driver))) {
+      _scheduleFit();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final pickup = widget.pickup,
-        dropoff = widget.dropoff,
-        driver = widget.driver;
+    final pickup = _usable(widget.pickup) ? widget.pickup : null,
+        dropoff = _usable(widget.dropoff) ? widget.dropoff : null,
+        driver = _usable(widget.driver) ? widget.driver : null;
     final height = widget.height;
     final onPick = widget.onPick;
     final center =
         pickup ??
         driver ??
+        dropoff ??
         const Place(
           id: 'hcm',
           address: 'HCM',
@@ -166,113 +148,84 @@ class _GrapMapState extends State<GrapMap> {
                   ),
             onMapReady: () {
               ready = true;
-              fitRoute();
+              _scheduleFit();
             },
             initialCenter: LatLng(center.latitude, center.longitude),
-            initialZoom: 13,
+            initialZoom: 15,
+            minZoom: 3,
+            maxZoom: 19,
+            onPositionChanged: (_, hasGesture) {
+              if (hasGesture) userMoved = true;
+            },
+            onMapEvent: (event) {
+              if (event.source == MapEventSource.nonRotatedSizeChange) {
+                _scheduleFit();
+              }
+            },
             interactionOptions: const InteractionOptions(
               flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
             ),
           ),
           children: [
-            TileLayer(
-              key: ValueKey(tileAttempt),
-              tileBuilder: (context, tileWidget, tile) {
-                if (!tile.loadError && tile.imageInfo != null) {
-                  _tileLoaded();
-                }
-                return tileWidget;
-              },
-              urlTemplate: const String.fromEnvironment(
-                'MAP_TILE_URL',
-                defaultValue: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              ),
-              userAgentPackageName: 'vn.grapsolution.mobile',
-            ),
-            if (pickup != null && dropoff != null)
-              PolylineLayer(
-                polylines: [
-                  Polyline(
-                    points: [
-                      LatLng(pickup.latitude, pickup.longitude),
-                      LatLng(dropoff.latitude, dropoff.longitude),
-                    ],
-                    color: grapGreen.withValues(alpha: .5),
-                    strokeWidth: 3,
-                    pattern: StrokePattern.dashed(segments: [8, 8]),
-                  ),
-                ],
-              ),
-            MarkerLayer(
-              markers: [
-                for (final entry in [
-                  (pickup, Icons.circle, grapGreen),
-                  (dropoff, Icons.location_on, const Color(0xffc09267)),
-                  (driver, Icons.navigation_rounded, const Color(0xff2563eb)),
-                ])
-                  if (entry.$1 != null)
-                    Marker(
-                      point: LatLng(entry.$1!.latitude, entry.$1!.longitude),
-                      width: 36,
-                      height: 36,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: entry.$3,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 3),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x25326440),
-                              blurRadius: 8,
-                              offset: Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Icon(entry.$2, color: Colors.white, size: 17),
+            GrapTileLayer(
+              children: [
+                if (pickup != null && dropoff != null)
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: [
+                          LatLng(pickup.latitude, pickup.longitude),
+                          LatLng(dropoff.latitude, dropoff.longitude),
+                        ],
+                        color: grapGreen.withValues(alpha: .5),
+                        strokeWidth: 3,
+                        pattern: StrokePattern.dashed(segments: [8, 8]),
                       ),
-                    ),
+                    ],
+                  ),
+                MarkerLayer(
+                  markers: [
+                    for (final entry in [
+                      (pickup, Icons.circle, grapGreen),
+                      (dropoff, Icons.location_on, const Color(0xffc09267)),
+                      (
+                        driver,
+                        Icons.navigation_rounded,
+                        const Color(0xff2563eb),
+                      ),
+                    ])
+                      if (entry.$1 != null)
+                        Marker(
+                          point: LatLng(
+                            entry.$1!.latitude,
+                            entry.$1!.longitude,
+                          ),
+                          width: 36,
+                          height: 36,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: entry.$3,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x25326440),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              entry.$2,
+                              color: Colors.white,
+                              size: 17,
+                            ),
+                          ),
+                        ),
+                  ],
+                ),
               ],
             ),
-            if (tileTimeout)
-              Center(
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 290),
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0x12000000), blurRadius: 16),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.map_outlined,
-                        color: grapMuted,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 10),
-                      const Flexible(
-                        child: Text(
-                          'Chưa tải được bản đồ. Kiểm tra kết nối và thử lại.',
-                          style: TextStyle(fontSize: 13, color: grapMuted),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Thử lại bản đồ',
-                        onPressed: _retryTiles,
-                        icon: const Icon(
-                          Icons.refresh_rounded,
-                          color: grapGreen,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
             if (widget.showControls)
               Align(
                 alignment: Alignment.bottomRight,

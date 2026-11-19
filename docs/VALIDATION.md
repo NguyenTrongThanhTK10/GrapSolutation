@@ -2,6 +2,15 @@
 
 Kiểm tra trên macOS/Apple Silicon; giao diện mobile ngày **03/11/2026**, web quản trị và thống kê mobile cập nhật ngày **04/11/2026**. Toolchain thực tế: .NET SDK 10.0.401, Node 20.19.0, Flutter 3.47.6, Dart 3.13.5.
 
+## Ổn định bản đồ mobile — 19/11/2026
+
+- `flutter test --no-pub` trong từng app: **112/112 customer, 99/99 driver**, tổng **211/211 đạt**. Thêm **17 ca hồi quy** về giữ camera khi kéo và GPS cập nhật, giữ zoom khi chọn ghim, không căn lại với tuyến không đổi, bỏ tọa độ không hợp lệ, tải thiếu tile, mất mạng sau khi bản đồ đã tải, thử lại/phục hồi và GPS trả chậm sau khi chọn ghim thủ công.
+- `flutter analyze --no-pub --no-fatal-infos`: không có error/warning hoặc lint trong phần mã vừa sửa; còn **20 lint info customer, 23 lint info driver** trong các file có sẵn ngoài phạm vi bản đồ.
+- Hai app xử lý lỗi tile qua provider riêng cho từng phiên tải, giữ cache ảnh hợp lệ và đóng client cũ khi thử lại. Kiểm tra mọi tile trong vùng đang xem thay vì coi một ảnh tải được là đủ; ảnh trong suốt 1×1 khi lỗi không được coi là thành công. Camera chỉ tự theo dõi khi người dùng chưa kéo/phóng to hoặc đã yêu cầu căn lại.
+- Căn camera được thực hiện sau frame, phù hợp với [hướng dẫn điều khiển camera của flutter_map](https://docs.fleaflet.dev/usage/programmatic-interaction). Kiểm thử phục hồi mạng dùng HTTP client giả lập với ảnh PNG hợp lệ, sau đó lỗi kết nối và phục hồi; không chỉ kiểm tra trường hợp bản đồ trống từ lúc khởi động.
+- Kiểm tra HTTPS từ máy host: cả `tile.openstreetmap.org` và `tile.openstreetmap.de` trả **HTTP 200** cho một tile mẫu. Kết quả này chỉ xác nhận kết nối tại thời điểm kiểm tra, không chứng minh mọi tile hoặc mạng trên thiết bị đều ổn định.
+- Chưa build lại APK/iOS hoặc chạy trên emulator/thiết bị vật lý trong đợt này; `adb devices -l` không có thiết bị kết nối. Kiểm thử không xác nhận GPS phần cứng, nền bản đồ trên thiết bị, tracking nền hoặc provider production.
+
 ## Chat khách hàng và tài xế — 16/11/2026
 
 - Toàn bộ backend: **54/54 đạt** với `dotnet test --no-build --no-restore --disable-build-servers`. Hai bộ mới `RideChatTests` và `RideChatRealtimeTests` gồm **9/9 ca**: hai chiều/đúng sender, mã hóa nội dung, ownership, trạng thái kết thúc, replay, đổi tài xế, phân trang có timestamp trùng, gửi đồng thời và hạn mức 30 request/phút/tài khoản.

@@ -25,8 +25,41 @@ class _PlacePickerState extends ConsumerState<PlacePickerScreen> {
   );
   bool busy = false;
   String? error;
+  int locationRevision = 0, cameraRevision = 0;
+  double? accuracy;
+
+  Future<void> locate() async {
+    final revision = ++locationRevision;
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      final position = await ref.read(locationProvider).current();
+      if (!mounted || revision != locationRevision) return;
+      setState(() {
+        point = Place(
+          id: 'manual',
+          address: 'Vị trí hiện tại',
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+        address.text = 'Vị trí hiện tại';
+        accuracy = position.accuracy;
+        cameraRevision++;
+      });
+    } catch (e) {
+      if (mounted && revision == locationRevision) {
+        setState(() => error = e.toString());
+      }
+    } finally {
+      if (mounted && revision == locationRevision) setState(() => busy = false);
+    }
+  }
+
   @override
   void dispose() {
+    locationRevision++;
     address.dispose();
     super.dispose();
   }
@@ -46,39 +79,25 @@ class _PlacePickerState extends ConsumerState<PlacePickerScreen> {
           'Chạm lên bản đồ để đặt ghim, nhập địa chỉ hoặc hướng dẫn điểm đón. Có thể nhập thủ công khi không cấp quyền GPS.',
         ),
         GrapMap(
+          cameraRevision: cameraRevision,
           pickup: point,
           height: 320,
-          onPick: (p) => setState(() => point = p),
+          onPick: (p) => setState(() {
+            locationRevision++;
+            point = p;
+            busy = false;
+            error = null;
+            accuracy = null;
+            address.clear();
+          }),
         ),
         const SizedBox(height: 18),
         OutlinedButton.icon(
-          onPressed: busy
-              ? null
-              : () async {
-                  setState(() {
-                    busy = true;
-                    error = null;
-                  });
-                  try {
-                    final p = await ref.read(locationProvider).current();
-                    if (mounted) {
-                      setState(
-                        () => point = Place(
-                          id: 'manual',
-                          address: address.text,
-                          latitude: p.latitude,
-                          longitude: p.longitude,
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) setState(() => error = e.toString());
-                  } finally {
-                    if (mounted) setState(() => busy = false);
-                  }
-                },
+          onPressed: busy ? null : locate,
           icon: const Icon(Icons.my_location, size: 18),
-          label: const Text('Sử dụng vị trí thiết bị'),
+          label: Text(
+            busy ? 'Đang xác định vị trí…' : 'Sử dụng vị trí thiết bị',
+          ),
         ),
         const SizedBox(height: 18),
         TextField(
@@ -89,6 +108,12 @@ class _PlacePickerState extends ConsumerState<PlacePickerScreen> {
             labelText: 'Địa chỉ / mô tả điểm đã chọn',
           ),
         ),
+        if (accuracy != null)
+          GrapNotice(
+            accuracy! > 100
+                ? 'GPS chưa chính xác. Hãy kiểm tra và chỉnh ghim trước khi xác nhận.'
+                : 'Đã tìm được vị trí. Kiểm tra ghim và bổ sung hướng dẫn đón nếu cần.',
+          ),
         if (error != null) GrapNotice(error!, error: true),
         const SizedBox(height: 18),
         FilledButton(

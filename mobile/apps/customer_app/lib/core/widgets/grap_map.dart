@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -8,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../domain/models.dart';
 import '../domain/booking_discovery.dart';
 import '../theme/app_theme.dart';
+import 'grap_tile_layer.dart';
 
 class GrapMap extends StatefulWidget {
   final Place? pickup, dropoff, driver;
@@ -15,6 +14,7 @@ class GrapMap extends StatefulWidget {
   final List<NearbyDriver> nearbyDrivers;
   final double height, borderRadius;
   final bool showControls, showAttribution;
+  final int cameraRevision;
   final ValueChanged<Place>? onPick;
   const GrapMap({
     super.key,
@@ -28,83 +28,74 @@ class GrapMap extends StatefulWidget {
     this.borderRadius = 16,
     this.showControls = true,
     this.showAttribution = true,
+    this.cameraRevision = 0,
     this.onPick,
   });
   @override
   State<GrapMap> createState() => _GrapMapState();
 }
 
+bool _usable(Place? place) =>
+    place != null &&
+    place.latitude.isFinite &&
+    place.longitude.isFinite &&
+    place.latitude >= -90 &&
+    place.latitude <= 90 &&
+    place.longitude >= -180 &&
+    place.longitude <= 180;
+
+bool _samePoint(Place? a, Place? b) =>
+    a?.latitude == b?.latitude && a?.longitude == b?.longitude;
+
+List<LatLng> _coordinates(Iterable<Place> places) => [
+  for (final place in places)
+    if (_usable(place)) LatLng(place.latitude, place.longitude),
+];
+
+bool _samePoints(List<Place> a, List<Place> b) {
+  if (identical(a, b)) return true;
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (!_samePoint(a[i], b[i])) return false;
+  }
+  return true;
+}
+
 class _GrapMapState extends State<GrapMap> {
   final controller = MapController();
-  NetworkTileProvider tileProvider = NetworkTileProvider(
-    silenceExceptions: true,
-  );
-  bool ready = false, tilesLoaded = false, tileTimeout = false;
-  int tileAttempt = 0;
-  Timer? tileTimer;
+  bool ready = false, userMoved = false, frameScheduled = false;
   bool nearbyFramed = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _watchTiles();
-  }
-
-  void _watchTiles() {
-    tileTimer?.cancel();
-    tileTimer = Timer(const Duration(seconds: 8), () {
-      if (mounted && !tilesLoaded) {
-        setState(() => tileTimeout = true);
-      }
-    });
-  }
-
-  void _retryTiles() {
-    setState(() {
-      tileAttempt++;
-      // The previous keyed TileLayer disposes its own provider/client.
-      tileProvider = NetworkTileProvider(silenceExceptions: true);
-      tilesLoaded = false;
-      tileTimeout = false;
-    });
-    _watchTiles();
-  }
-
-  void _tileLoaded() {
-    if (tilesLoaded) {
-      return;
-    }
-    tilesLoaded = true;
-    tileTimer?.cancel();
-    if (tileTimeout) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() => tileTimeout = false);
-        }
-      });
-    }
-  }
-
   List<LatLng> get points => {
-    for (final place in [
-      widget.pickup,
-      widget.dropoff,
-      widget.driver,
+    ..._coordinates([
+      ?widget.pickup,
+      ?widget.dropoff,
+      ?widget.driver,
       ...widget.routePoints,
       ...widget.recordedPoints,
       ...widget.nearbyDrivers.map((driver) => driver.location),
-    ])
-      if (place != null) LatLng(place.latitude, place.longitude),
+    ]),
   }.toList();
 
+  void _scheduleFit() {
+    if (frameScheduled) return;
+    frameScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      frameScheduled = false;
+      if (mounted && !userMoved) _fitRoute();
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
   void fitRoute() {
-    if (!ready) {
-      return;
-    }
+    userMoved = false;
+    _fitRoute();
+  }
+
+  void _fitRoute() {
+    if (!ready) return;
     final size = controller.camera.nonRotatedSize;
-    if (size.width <= 96 || size.height <= 96) {
-      return;
-    }
+    if (size.width <= 96 || size.height <= 96) return;
     final coordinates = points;
     if (coordinates.length > 1) {
       controller.fitCamera(
@@ -115,52 +106,53 @@ class _GrapMapState extends State<GrapMap> {
         ),
       );
     } else if (coordinates.isNotEmpty) {
-      controller.move(coordinates.single, 15);
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant GrapMap oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final changed =
-        [
-          (oldWidget.pickup, widget.pickup),
-          (oldWidget.dropoff, widget.dropoff),
-          (oldWidget.driver, widget.driver),
-        ].any(
-          (pair) =>
-              pair.$1?.latitude != pair.$2?.latitude ||
-              pair.$1?.longitude != pair.$2?.longitude,
-        );
-    if (changed ||
-        oldWidget.routePoints != widget.routePoints ||
-        oldWidget.recordedPoints != widget.recordedPoints ||
-        (!nearbyFramed && widget.nearbyDrivers.isNotEmpty)) {
-      nearbyFramed = widget.nearbyDrivers.isNotEmpty;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          fitRoute();
-        }
-      });
+      controller.move(
+        coordinates.single,
+        widget.onPick == null ? 15 : controller.camera.zoom,
+      );
     }
   }
 
   @override
   void dispose() {
-    tileTimer?.cancel();
     controller.dispose();
     super.dispose();
   }
 
   @override
+  void didUpdateWidget(covariant GrapMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final endpointsChanged =
+        !_samePoint(oldWidget.pickup, widget.pickup) ||
+        !_samePoint(oldWidget.dropoff, widget.dropoff);
+    final explicit = oldWidget.cameraRevision != widget.cameraRevision;
+    final firstNearby = !nearbyFramed && widget.nearbyDrivers.isNotEmpty;
+    nearbyFramed = nearbyFramed || widget.nearbyDrivers.isNotEmpty;
+    if (endpointsChanged || explicit) userMoved = false;
+    if (!userMoved &&
+        (endpointsChanged ||
+            explicit ||
+            firstNearby ||
+            !_samePoint(oldWidget.driver, widget.driver) ||
+            !_samePoints(oldWidget.routePoints, widget.routePoints) ||
+            !_samePoints(oldWidget.recordedPoints, widget.recordedPoints))) {
+      _scheduleFit();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final pickup = widget.pickup,
-        dropoff = widget.dropoff,
-        driver = widget.driver;
+    final pickup = _usable(widget.pickup) ? widget.pickup : null,
+        dropoff = _usable(widget.dropoff) ? widget.dropoff : null,
+        driver = _usable(widget.driver) ? widget.driver : null;
     final height = widget.height;
     final onPick = widget.onPick;
+    final route = _coordinates(widget.routePoints);
+    final recorded = _coordinates(widget.recordedPoints);
     final center =
         pickup ??
+        driver ??
+        dropoff ??
         const Place(
           id: 'hcm',
           address: 'HCM',
@@ -187,178 +179,139 @@ class _GrapMapState extends State<GrapMap> {
             onMapReady: () {
               ready = true;
               nearbyFramed = widget.nearbyDrivers.isNotEmpty;
-              fitRoute();
+              _scheduleFit();
             },
             initialCenter: LatLng(center.latitude, center.longitude),
-            initialZoom: 13,
+            initialZoom: 15,
+            minZoom: 3,
+            maxZoom: 19,
+            onPositionChanged: (_, hasGesture) {
+              if (hasGesture) userMoved = true;
+            },
+            onMapEvent: (event) {
+              if (event.source == MapEventSource.nonRotatedSizeChange) {
+                _scheduleFit();
+              }
+            },
             interactionOptions: const InteractionOptions(
               flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
             ),
           ),
           children: [
-            TileLayer(
-              key: ValueKey(tileAttempt),
-              tileProvider: tileProvider,
-              tileBuilder: (context, tileWidget, tile) {
-                final image = tile.imageInfo?.image;
-                // NetworkTileProvider returns a transparent 1x1 image on
-                // failure. It must not dismiss the timeout/retry notice.
-                if (!tile.loadError &&
-                    image != null &&
-                    (image.width > 1 || image.height > 1)) {
-                  _tileLoaded();
-                }
-                return tileWidget;
-              },
-              urlTemplate: const String.fromEnvironment(
-                'MAP_TILE_URL',
-                defaultValue: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              ),
-              userAgentPackageName: 'vn.grapsolution.mobile',
-            ),
-            if (widget.routePoints.length > 1 ||
-                widget.recordedPoints.length > 1 ||
-                (pickup != null && dropoff != null))
-              PolylineLayer(
-                polylines: [
-                  if (widget.routePoints.length > 1)
-                    Polyline(
-                      points: widget.routePoints
-                          .map((p) => LatLng(p.latitude, p.longitude))
-                          .toList(),
-                      color: grapGreen,
-                      strokeWidth: 5,
-                      borderColor: Colors.white,
-                      borderStrokeWidth: 2,
-                    ),
-                  if (widget.recordedPoints.length > 1)
-                    Polyline(
-                      points: widget.recordedPoints
-                          .map((p) => LatLng(p.latitude, p.longitude))
-                          .toList(),
-                      color: const Color(0xff2563eb),
-                      strokeWidth: 5,
-                      borderColor: Colors.white,
-                      borderStrokeWidth: 2,
-                    ),
-                  if (widget.routePoints.length < 2 &&
-                      widget.recordedPoints.length < 2 &&
-                      pickup != null &&
-                      dropoff != null)
-                    Polyline(
-                      points: [
-                        LatLng(pickup.latitude, pickup.longitude),
-                        LatLng(dropoff.latitude, dropoff.longitude),
-                      ],
-                      color: grapGreen.withValues(alpha: .5),
-                      strokeWidth: 3,
-                      pattern: StrokePattern.dashed(segments: [8, 8]),
-                    ),
-                ],
-              ),
-            MarkerLayer(
-              markers: [
-                for (final nearby in widget.nearbyDrivers)
-                  Marker(
-                    key: ValueKey('nearby-${nearby.location.id}'),
-                    point: LatLng(
-                      nearby.location.latitude,
-                      nearby.location.longitude,
-                    ),
-                    width: 42,
-                    height: 42,
-                    child: Tooltip(
-                      message:
-                          '${serviceLabel(nearby.service)} đang nhận chuyến',
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: grapGreen, width: 2),
-                          boxShadow: const [
-                            BoxShadow(color: Color(0x25326440), blurRadius: 8),
-                          ],
-                        ),
-                        child: Icon(
-                          nearby.service == 'BIKE'
-                              ? Icons.two_wheeler_rounded
-                              : nearby.service == 'CAR_7'
-                              ? Icons.airport_shuttle_rounded
-                              : Icons.local_taxi_rounded,
+            GrapTileLayer(
+              children: [
+                if (route.length > 1 ||
+                    recorded.length > 1 ||
+                    (pickup != null && dropoff != null))
+                  PolylineLayer(
+                    polylines: [
+                      if (route.length > 1)
+                        Polyline(
+                          points: route,
                           color: grapGreen,
-                          size: 25,
+                          strokeWidth: 5,
+                          borderColor: Colors.white,
+                          borderStrokeWidth: 2,
                         ),
-                      ),
-                    ),
-                  ),
-                for (final entry in [
-                  (pickup, Icons.circle, grapGreen),
-                  (dropoff, Icons.location_on, const Color(0xffc09267)),
-                  (driver, Icons.local_taxi, grapGreen),
-                ])
-                  if (entry.$1 != null)
-                    Marker(
-                      point: LatLng(entry.$1!.latitude, entry.$1!.longitude),
-                      width: 36,
-                      height: 36,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: entry.$3,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 3),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x25326440),
-                              blurRadius: 8,
-                              offset: Offset(0, 3),
-                            ),
+                      if (recorded.length > 1)
+                        Polyline(
+                          points: recorded,
+                          color: const Color(0xff2563eb),
+                          strokeWidth: 5,
+                          borderColor: Colors.white,
+                          borderStrokeWidth: 2,
+                        ),
+                      if (route.length < 2 &&
+                          recorded.length < 2 &&
+                          pickup != null &&
+                          dropoff != null)
+                        Polyline(
+                          points: [
+                            LatLng(pickup.latitude, pickup.longitude),
+                            LatLng(dropoff.latitude, dropoff.longitude),
                           ],
+                          color: grapGreen.withValues(alpha: .5),
+                          strokeWidth: 3,
+                          pattern: StrokePattern.dashed(segments: [8, 8]),
                         ),
-                        child: Icon(entry.$2, color: Colors.white, size: 17),
-                      ),
-                    ),
+                    ],
+                  ),
+                MarkerLayer(
+                  markers: [
+                    for (final nearby in widget.nearbyDrivers)
+                      if (_usable(nearby.location))
+                        Marker(
+                          key: ValueKey('nearby-${nearby.location.id}'),
+                          point: LatLng(
+                            nearby.location.latitude,
+                            nearby.location.longitude,
+                          ),
+                          width: 42,
+                          height: 42,
+                          child: Tooltip(
+                            message:
+                                '${serviceLabel(nearby.service)} đang nhận chuyến',
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: grapGreen, width: 2),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x25326440),
+                                    blurRadius: 8,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                nearby.service == 'BIKE'
+                                    ? Icons.two_wheeler_rounded
+                                    : nearby.service == 'CAR_7'
+                                    ? Icons.airport_shuttle_rounded
+                                    : Icons.local_taxi_rounded,
+                                color: grapGreen,
+                                size: 25,
+                              ),
+                            ),
+                          ),
+                        ),
+                    for (final entry in [
+                      (pickup, Icons.circle, grapGreen),
+                      (dropoff, Icons.location_on, const Color(0xffc09267)),
+                      (driver, Icons.local_taxi, grapGreen),
+                    ])
+                      if (entry.$1 != null)
+                        Marker(
+                          point: LatLng(
+                            entry.$1!.latitude,
+                            entry.$1!.longitude,
+                          ),
+                          width: 36,
+                          height: 36,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: entry.$3,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x25326440),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              entry.$2,
+                              color: Colors.white,
+                              size: 17,
+                            ),
+                          ),
+                        ),
+                  ],
+                ),
               ],
             ),
-            if (tileTimeout)
-              Center(
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 290),
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0x12000000), blurRadius: 16),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.map_outlined,
-                        color: grapMuted,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 10),
-                      const Flexible(
-                        child: Text(
-                          'Chưa tải được bản đồ. Kiểm tra kết nối và thử lại.',
-                          style: TextStyle(fontSize: 13, color: grapMuted),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Thử lại bản đồ',
-                        onPressed: _retryTiles,
-                        icon: const Icon(
-                          Icons.refresh_rounded,
-                          color: grapGreen,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
             if (widget.showControls)
               Align(
                 alignment: Alignment.bottomRight,

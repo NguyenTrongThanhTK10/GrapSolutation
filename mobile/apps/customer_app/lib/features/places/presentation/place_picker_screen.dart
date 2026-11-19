@@ -30,6 +30,7 @@ class _PlacePickerState extends ConsumerState<PlacePickerScreen> {
     text: widget.initial?.address ?? '',
   );
   int locationRevision = 0;
+  int cameraRevision = 0;
   double? accuracy;
   @override
   void initState() {
@@ -55,6 +56,7 @@ class _PlacePickerState extends ConsumerState<PlacePickerScreen> {
         );
         address.text = 'Vị trí hiện tại';
         accuracy = p.accuracy;
+        cameraRevision++;
       });
     } catch (e) {
       if (mounted && revision == locationRevision) {
@@ -118,6 +120,7 @@ class _PlacePickerState extends ConsumerState<PlacePickerScreen> {
         ),
         const SizedBox(height: 12),
         GrapMap(
+          cameraRevision: cameraRevision,
           pickup: point,
           height: MediaQuery.sizeOf(context).height < 500 ? 180 : 260,
           onPick: (p) => setState(() {

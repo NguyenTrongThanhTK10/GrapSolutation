@@ -6,28 +6,30 @@ Nền tảng gọi xe gồm backend ASP.NET Core, cổng quản trị **Vue 3 + 
 
 Đây là bản phát triển có nghiệp vụ và dữ liệu lưu bền vững, dựa trên [đặc tả](GRAP_SOLUTION_DAC_TA_HE_THONG.md). Có thể chạy vòng đời tiền mặt xuyên suốt trên local. **Chưa phải bản đã nghiệm thu toàn bộ P0 hoặc sẵn sàng vận hành thật**; các tích hợp và khoảng trống còn lại được ghi trong [ma trận triển khai](docs/IMPLEMENTATION_STATUS.md).
 
-## Chạy nhanh
+## Chạy nhanh ở chế độ debug
 
-Yêu cầu: .NET SDK 10, Node.js ≥ 20.19, npm; Flutter 3.47/Dart 3.13 nếu chạy mobile. Thư mục `backend` pin SDK theo `global.json`; frontend có `.nvmrc` và lockfile.
+Yêu cầu: .NET SDK 10, Node.js ≥ 20.19, npm; Flutter 3.47.6/Dart 3.13.5 nếu chạy mobile. Thư mục `backend` pin SDK theo `global.json`; frontend có `.nvmrc` và lockfile. Android cần Android SDK và emulator/thiết bị; iOS Simulator cần macOS và Xcode.
 
-Terminal 1:
+Mở terminal tại thư mục gốc `GrapSolution` cho từng project và giữ các terminal đang chạy. Xem thêm [hướng dẫn debug chi tiết](docs/runbooks/LOCAL_AND_DEPLOYMENT.md#chạy-debug-từng-project) để chạy trên iOS, dùng hot reload, ADB hoặc đặt breakpoint.
+
+**Terminal 1 — Backend API (.NET, Debug + Development):**
 
 ```sh
 cd backend
 dotnet restore
-dotnet run --project src/GrapSolution.Api -- --environment Development --urls http://127.0.0.1:5080
+dotnet run --project src/GrapSolution.Api --configuration Debug -- --environment Development --urls http://127.0.0.1:5080
 ```
 
-Terminal 2:
+**Terminal 2 — Admin portal (Vite development server):**
 
 ```sh
 cd admin_portal
 nvm use # nếu máy sử dụng nvm
 npm ci
-npm run dev
+npm run dev -- --strictPort
 ```
 
-Mở **http://127.0.0.1:5173**. Chọn tài khoản mẫu rồi nhấn **Vào không gian làm việc**. API tự tạo SQLite và dữ liệu mẫu khi chạy Development lần đầu. Dữ liệu không bị reset khi khởi động lại.
+Mở **http://127.0.0.1:5173**. Chọn tài khoản mẫu rồi nhấn **Vào không gian làm việc**. `--strictPort` giữ đúng cổng 5173, báo lỗi nếu cổng bị chiếm. API tự tạo SQLite và dữ liệu mẫu khi chạy Development lần đầu. Dữ liệu không bị reset khi khởi động lại. Local SQLite không cần Docker; không cần tạo `.env` để chạy các lệnh trên.
 
 - API: http://127.0.0.1:5080
 - OpenAPI: http://127.0.0.1:5080/openapi/v1.json
@@ -76,25 +78,58 @@ API tự bổ sung bảng chat vào SQLite local khi khởi động lại, giữ
 
 Không mặc định cấp quyền tài chính cho quản trị vận hành. API kiểm tra vai trò, chủ sở hữu tài nguyên và scope vùng; UI không thay thế kiểm tra này.
 
-## Chạy mobile
+## Chạy mobile ở chế độ debug
+
+Khởi động API ở terminal 1 trước; giữ portal ở terminal 2 nếu thử link chia sẻ. Mở Android Emulator từ Android Studio rồi kiểm tra ID thiết bị:
 
 ```sh
-cd mobile/apps/customer_app # hoặc driver_app
-flutter pub get
-flutter run --dart-define=ENABLE_DEV_LOGIN=true --dart-define=API_BASE_URL=http://10.0.2.2:5080
+flutter doctor
+flutter devices
 ```
 
-Android emulator dùng `10.0.2.2`; iOS Simulator dùng `http://127.0.0.1:5080`. Trên thiết bị thật cần API HTTPS hoặc mạng phát triển được cấu hình riêng. Không đưa development login vào bản phát hành.
+Các lệnh Android dưới đây dùng ID ví dụ `emulator-5554`; thay bằng ID trong `flutter devices` nếu khác. Mỗi terminal mới bắt đầu tại thư mục gốc `GrapSolution`.
+
+**Terminal 3 — App khách hàng (`customer_app`, Android):**
+
+```sh
+cd mobile/apps/customer_app
+flutter pub get
+flutter run --debug -d emulator-5554 \
+  --dart-define=ENABLE_DEV_LOGIN=true \
+  --dart-define=API_BASE_URL=http://10.0.2.2:5080 \
+  --dart-define=PORTAL_BASE_URL=http://10.0.2.2:5173
+```
+
+**Terminal 4 — App tài xế (`driver_app`, Android):**
+
+```sh
+cd mobile/apps/driver_app
+flutter pub get
+flutter run --debug -d emulator-5554 \
+  --dart-define=ENABLE_DEV_LOGIN=true \
+  --dart-define=API_BASE_URL=http://10.0.2.2:5080 \
+  --dart-define=PORTAL_BASE_URL=http://10.0.2.2:5173
+```
+
+Có thể cài cả hai app trên cùng emulator; dùng hai emulator/thiết bị nếu cần giữ cả hai app ở foreground khi thử nhận chuyến, GPS hoặc chat. Nếu dùng emulator thứ hai, thay `-d` bằng ID của emulator đó.
+
+**iOS Simulator — dùng cho từng app:** mở Simulator, chạy `flutter devices`, rồi chạy các lệnh sau trong thư mục app tương ứng (`mobile/apps/customer_app` hoặc `mobile/apps/driver_app`). Thay `<IOS_SIMULATOR_ID>` bằng ID vừa tìm được.
+
+```sh
+flutter pub get
+flutter run --debug -d "<IOS_SIMULATOR_ID>" \
+  --dart-define=ENABLE_DEV_LOGIN=true \
+  --dart-define=API_BASE_URL=http://127.0.0.1:5080 \
+  --dart-define=PORTAL_BASE_URL=http://127.0.0.1:5173
+```
+
+Trong terminal Flutter: `r` để hot reload, `R` để hot restart, `q` để dừng. Khi đổi `--dart-define`, dừng rồi chạy lại lệnh. `API_BASE_URL` chỉ gồm địa chỉ máy chủ và cổng, không thêm `/api/v1`.
+
+Android Emulator dùng `10.0.2.2`; iOS Simulator dùng `127.0.0.1`. Thiết bị Android qua USB có thể dùng [ADB reverse](docs/runbooks/LOCAL_AND_DEPLOYMENT.md#android-qua-adb-reverse). Thiết bị thật qua Wi-Fi cần API HTTPS hoặc mạng phát triển được cấu hình riêng. Không đưa development login vào bản phát hành.
+
+Nếu bản đồ lỗi do không truy cập được nguồn tile mặc định, thêm `--dart-define=MAP_TILE_URL=https://tile.openstreetmap.de/{z}/{x}/{y}.png` vào lệnh `flutter run` để xem thử local, rồi dừng/chạy lại app; xem [lưu ý nhà cung cấp bản đồ](docs/runbooks/LOCAL_AND_DEPLOYMENT.md#mạng-và-provider).
 
 Firebase đã cấu hình cho Android/iOS của cả hai app. Xem [hướng dẫn Firebase mobile](docs/runbooks/FIREBASE_MOBILE.md) để thiết lập APNs, credentials backend và kiểm tra thông báo trên thiết bị.
-
-```sh
-# iOS Simulator
-flutter run --dart-define=ENABLE_DEV_LOGIN=true --dart-define=API_BASE_URL=http://127.0.0.1:5080
-
-# Link chia sẻ mở trên máy/thiết bị truy cập được portal
-flutter run --dart-define=ENABLE_DEV_LOGIN=true --dart-define=API_BASE_URL=http://10.0.2.2:5080 --dart-define=PORTAL_BASE_URL=http://10.0.2.2:5173
-```
 
 Hai app dùng secure storage cho session và command hoàn tất/thu tiền chưa rõ kết quả, refresh single-flight, REST snapshot và SignalR + polling. Native có hồ sơ, inbox hỗ trợ, thông báo, chọn ghim thủ công, onboarding tài xế, lịch sử lọc/phân trang, biên nhận và đánh giá, địa chỉ đã lưu, liên hệ tin cậy ngoại tuyến và tiếp nhận yêu cầu xóa tài khoản. Khi chuyến không đổi, lịch sử/thu nhập tải theo khoảng 30 giây; kéo xuống làm mới hoặc chuyến đổi phiên bản tải ngay. Lỗi các phần này không làm mất chuyến hiện tại. App chặn thu thêm khi còn lệnh thu tiền chưa xác nhận hoặc chưa đọc được snapshot thanh toán mới. Hiện tracking mobile chạy khi ứng dụng foreground; background service, GPS queue offline, cơ chế replay tự động có kiểm soát và kiểm thử thiết bị khi khóa màn hình còn phải hoàn thiện trước pilot.
 
